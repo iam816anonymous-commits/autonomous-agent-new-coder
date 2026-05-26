@@ -1,0 +1,50 @@
+{
+  "name": "mini-jules",
+  "displayName": "Mini Jules",
+  "description": "Autonomous Multi-File Project Generator",
+  "version": "0.1.0",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "mini-jules-explorer",
+          "title": "Mini Jules",
+          "icon": "resources/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "mini-jules-explorer": [
+        {
+          "id": "mini-jules-sidebar",
+          "type": "webview",
+          "title": "Jules Control"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "mini-jules.generate",
+        "title": "Jules: Generate Project"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "22.x",
+    "@types/vscode": "^1.90.0",
+    "typescript": "^5.x"
+  }
+}

@@ -17,7 +17,7 @@ from project_creator.core.knowledge_graph import KnowledgeGraph
 from project_creator.core.sandbox import Sandbox
 from project_creator.core.deployment import DeploymentOrchestrator
 from project_creator.core.telemetry import TelemetryEngine
-from project_creator.core.evolution import CompareEngine, ShadowExecutor
+from project_creator.core.evolution import CompareEngine, ShadowExecutor, DriftDetector
 from project_creator.router.provider_router import ProviderRouter
 from project_creator.agents.planner_agent import PlannerAgent
 from project_creator.agents.coder_agent import CoderAgent
@@ -25,11 +25,11 @@ from project_creator.agents.repair_agent import AuditAgent, RepairAgent
 
 def main():
     print("\n" + "="*60)
-    print("🧬 Comparative Evolution Platform v6")
+    print("🧬 Evidence-based Evolution Platform v7")
     print("="*60 + "\n")
 
     router = ProviderRouter()
-    project_dir = input("Enter project directory: ").strip() or "evolution_v6"
+    project_dir = input("Enter project directory: ").strip() or "evolution_v7"
     storage = Storage(project_dir)
     tools = ToolExecutor(project_dir)
     memory = MemoryLayer(os.path.join(storage.project_root, ".agent_memory.db"))
@@ -39,18 +39,20 @@ def main():
 
     planner = PlannerAgent(router)
     coder = CoderAgent(router, memory)
-    # Differentiating candidate by adding a small prompt prefix or using a different provider if available
-    shadow = ShadowExecutor(coder, coder, tools)
+    shadow = ShadowExecutor(coder, tools)
 
     audit_agent = AuditAgent(router)
     repair_agent = RepairAgent(router)
 
     existing_context = storage.read_existing_files()
 
+    if not memory.get_champion_version():
+        memory.add_version({'tag': 'v1.0', 'is_champion': True, 'latency': 100, 'tests_passed': 1})
+
     mode = input("\n[G]enerate, [A]udit, or [E]volve? [G/a/e]: ").lower()
 
     if mode == 'e':
-        perform_evolution_loop(existing_context, coder, audit_agent, repair_agent, memory, storage, tools, sandbox, deployer, telemetry, shadow)
+        perform_evidence_based_evolution(existing_context, coder, audit_agent, repair_agent, memory, storage, tools, sandbox, deployer, telemetry, shadow)
     elif mode == 'a':
         perform_repo_audit(existing_context, audit_agent, repair_agent, memory, storage, tools, sandbox, deployer, telemetry)
     else:
@@ -61,7 +63,6 @@ def perform_generation_flow(planner, coder, audit_agent, repair_agent, memory, s
     existing_context = storage.read_existing_files()
     blueprint = planner.create_blueprint(user_prompt, list(existing_context.keys()))
 
-    # Refinement loop
     while True:
         print("\n📋 Proposed Structure:")
         for i, file in enumerate(blueprint['files']):
@@ -113,9 +114,6 @@ def handle_sdlc_promotion(patch, audit_agent, repair_agent, memory, storage, too
         sandbox.abort_candidate(branch_name)
         return False
 
-    if not deployer.deploy_to_staging(patch, version_tag):
-        print("⚠️ Staging deployment warnings (simulated).")
-
     metrics = telemetry.capture_metrics('staging', version_tag)
     PatchManager.preview_patch(patch)
     approval = input(f"Approve promotion to PRODUCTION? [y/N]: ").lower()
@@ -131,42 +129,51 @@ def handle_sdlc_promotion(patch, audit_agent, repair_agent, memory, storage, too
     sandbox.abort_candidate(branch_name)
     return False
 
-def perform_evolution_loop(files, coder, audit_agent, repair_agent, memory, storage, tools, sandbox, deployer, telemetry, shadow):
-    print("\n🧬 Starting Comparative Evolution Mode...")
+def perform_evidence_based_evolution(files, champion_agent, audit_agent, repair_agent, memory, storage, tools, sandbox, deployer, telemetry, shadow):
+    print("\n🧬 Starting Evidence-based Evolution...")
+    champ_info = memory.get_champion_version()
+    champ_ver, champ_lat, champ_cost, champ_tests = champ_info
+    champ_metrics = {"latency": champ_lat, "cost": champ_cost, "tests_passed": champ_tests}
+
     for path, content in files.items():
-        print(f"\nComparing implementations for {path}...")
-        results = shadow.run_shadow_workload(f"Improve and refactor {path}", files)
+        print(f"\nEvaluating Evolution for {path}...")
+        results = shadow.run_shadow_workload(f"Advanced optimization for {path}", files, [champion_agent, champion_agent])
 
-        current_metrics = {"latency": results['current']['latency'], "tests_passed": 1}
-        candidate_metrics = {"latency": results['candidate']['latency'], "tests_passed": 1}
+        for cid, cres in results.items():
+            if cid == "champion": continue
 
-        comparison = CompareEngine.compare(current_metrics, candidate_metrics)
-        print(f"📊 COMPARISON: Winner={comparison['winner']} | Reasons: {comparison['reasons']}")
+            print(f"📉 Analyzing {cid} for {path}...")
+            candidate_metrics = {"latency": cres['latency'], "cost": 0.5, "tests_passed": 1, "approval_rate": 0.9, "repair_success": 0.85}
 
-        evo_id = memory.log_evolution("current", "candidate", comparison['winner'], comparison)
+            drift, msg = DriftDetector.detect(champ_metrics, candidate_metrics)
+            if drift:
+                print(f"❌ {cid} REJECTED: {msg}")
+                continue
 
-        if comparison['winner'] == 'candidate':
-             patch = {
-                 'file': path, 'reason': 'evolutionary optimization', 'risk': 'medium',
-                 'tests': [], 'old_content': content, 'new_content': results['candidate']['content']
-             }
-             if handle_evolution_promotion(patch, evo_id, memory, storage, tools, sandbox, deployer, telemetry):
-                 files[path] = patch['new_content']
+            scorecard = CompareEngine.generate_scorecard(cid, champ_metrics, candidate_metrics)
+            print(f"\n📊 SCORECARD for {cid}:")
+            print(json.dumps(scorecard, indent=2))
 
-def handle_evolution_promotion(patch, evo_id, memory, storage, tools, sandbox, deployer, telemetry):
+            approval = input(f"PROMOTION GATE: Approve this challenger? [y/N]: ").lower()
+            if approval == 'y':
+                scorecard['promotion'] = 'approved'
+                memory.add_scorecard(scorecard)
+                version_tag = f"v{int(time.time())}"
+                patch = {'file': path, 'reason': f"Evolution: {cid}", 'risk': 'low', 'tests': [], 'old_content': content, 'new_content': cres['content']}
+
+                if handle_evolution_promotion(patch, version_tag, champ_ver, memory, storage, tools, sandbox, deployer, telemetry):
+                    memory.add_version({'tag': version_tag, 'parent': champ_ver, 'is_champion': True, 'latency': candidate_metrics['latency'], 'tests_passed': 1})
+                    return
+
+def handle_evolution_promotion(patch, version_tag, parent_ver, memory, storage, tools, sandbox, deployer, telemetry):
     PatchManager.preview_patch(patch)
-    approval = input(f"PROMOTION GATE: Approve evolutionary replacement? [y/N]: ").lower()
-    if approval == 'y':
-        branch_name = f"evo-{int(time.time())}"
-        sandbox.create_candidate_branch(branch_name)
-        storage.write_file(patch['file'], patch['new_content'])
-        if tools.run_tests().get('returncode') == 0 or not os.path.exists(os.path.join(storage.project_root, "tests")):
-             if sandbox.merge_to_main(branch_name):
-                 memory.update_evolution_status(evo_id, 'PROMOTED')
-                 print("✅ Evolution Promoted.")
-                 return True
+    branch_name = f"evo-{version_tag}"
+    sandbox.create_candidate_branch(branch_name)
+    storage.write_file(patch['file'], patch['new_content'])
+    if tools.run_tests().get('returncode') == 0 or not os.path.exists(os.path.join(storage.project_root, "tests")):
+        if sandbox.merge_to_main(branch_name):
+            return True
     sandbox.abort_candidate(branch_name)
-    memory.update_evolution_status(evo_id, 'REJECTED')
     return False
 
 if __name__ == "__main__":

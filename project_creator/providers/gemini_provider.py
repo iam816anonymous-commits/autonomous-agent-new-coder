@@ -4,11 +4,13 @@ import random
 import os
 from google import genai
 from google.genai import types
+from project_creator.core.config import get_config
 
 class GeminiProvider:
     def __init__(self, api_key):
         self.client = genai.Client(api_key=api_key)
-        self.model_name = os.getenv("GEMINI_MODEL", "gemini-2.5-pro")
+        self.config = get_config()
+        self.model_name = self.config.gemini_model
 
     def generate(self, prompt, system_prompt=None, response_mime_type=None):
         contents = f"{system_prompt}\n\n{prompt}" if system_prompt else prompt

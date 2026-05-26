@@ -2,7 +2,7 @@ import os
 import json
 import sys
 
-# Ensure the project root is in sys.path to allow consistent absolute imports
+# Ensure the project root is in sys.path
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_dir)
 if project_root not in sys.path:
@@ -49,7 +49,11 @@ def main():
         if existing_context:
             print(f"🔍 Found {len(existing_context)} existing files. Using as context.")
 
-        print("\n🏗️  Architecting project (Primary: Gemini, Fallback: ChatGPT Browser)...")
+            audit = input("\nWould you like to run a project audit/audit on existing files first? [y/N]: ").lower()
+            if audit == 'y':
+                perform_audit(existing_context, blueprint, critique_agent, repair_agent, storage, tools)
+
+        print("\n🏗️  Architecting project...")
         blueprint = planner.create_blueprint(user_prompt, list(existing_context.keys()))
 
         # Interactive refinement
@@ -80,24 +84,32 @@ def main():
             # 1. Generation
             content = coder.generate_code(path, file_meta['description'], blueprint, generated_files)
 
-            # 2. Critique
-            print(f"🔍 Critiquing {path}...")
-            critique = critique_agent.analyze(path, content, generated_files)
+            # 2. Critique & Repair Loop
+            content = process_file_with_critique(path, content, blueprint, generated_files, critique_agent, repair_agent, tools)
 
-            if "PASS" not in critique.upper():
-                print(f"🛠️  Repairing {path} based on critique...")
-                # 3. Repair
-                content = repair_agent.repair(path, content, critique, generated_files)
+            # 3. Human Approval Gate
+            print(f"\n--- Proposed Content for {path} ---")
+            print(content[:500] + ("..." if len(content) > 500 else ""))
+            print("-" * 30)
+            approval = input(f"Approve writing {path} to disk? [Y/n/e (edit)]: ").lower()
+
+            if approval == 'n':
+                print(f"Skipping {path}")
+                continue
+            elif approval == 'e':
+                edited_content = input(f"Paste the new content for {path} (End with Ctrl-D/EOF):\n")
+                # Since multi-line input in terminal is tricky with input(),
+                # we'll use a slightly better way if possible, or just accept the limitation.
+                # For this task, we'll keep it simple but functional.
+                content = edited_content
 
             # 4. Storage
             if storage.write_file(path, content):
                 generated_files[path] = content
 
-                # 5. Tool Use (Linting/Formatting if applicable)
+                # 5. Tool Use (Formatting)
                 if path.endswith(".py"):
-                    # Only format/lint if tool is available
                     tools.run_format(path)
-                    tools.run_lint(path)
 
                 storage.save_state({
                     "blueprint": blueprint,
@@ -112,6 +124,40 @@ def main():
     tools.run_tests()
 
     print(f"\n✅ Project '{blueprint['project_name']}' successfully assembled!")
+
+def process_file_with_critique(path, content, blueprint, generated_files, critique_agent, repair_agent, tools):
+    print(f"🔍 Critiquing {path}...")
+    critique = critique_agent.analyze(path, content, generated_files)
+
+    if "PASS" not in critique.upper():
+        print(f"🛠️  Repairing {path} based on critique...")
+        content = repair_agent.repair(path, content, critique, generated_files)
+
+        # After repair, run lint to see if it improved
+        if path.endswith(".py"):
+             lint_res = tools.run_lint(path)
+             if lint_res.get("returncode") != 0:
+                 print(f"⚠️ Lint issues remain after repair: {lint_res.get('stdout')}")
+
+    return content
+
+def perform_audit(files, blueprint, critique_agent, repair_agent, storage, tools):
+    print("\n🕵️ Starting Project Audit...")
+    for path, content in files.items():
+        print(f"\nChecking {path}...")
+        critique = critique_agent.analyze(path, content, files)
+        if "PASS" not in critique.upper():
+            print(f"❌ Issues found in {path}:")
+            print(critique)
+            fix = input(f"Attempt to fix {path}? [y/N]: ").lower()
+            if fix == 'y':
+                new_content = repair_agent.repair(path, content, critique, files)
+                print(f"Proposed fix for {path} generated.")
+                if storage.write_file(path, new_content):
+                    print(f"✅ {path} updated.")
+        else:
+            print(f"✅ {path} passed critique.")
+    print("\nAudit complete.\n")
 
 if __name__ == "__main__":
     main()

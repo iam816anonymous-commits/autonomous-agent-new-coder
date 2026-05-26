@@ -19,18 +19,8 @@ class Storage:
             os.makedirs(full_path, exist_ok=True)
 
     def write_file(self, path, content):
-        # Apply Governance Boundary Check
-        try:
-            from project_creator.core.governance import GovernanceLayer
-            GovernanceLayer.enforce_boundary(path)
-        except ImportError:
-            pass # Handle bootstrap cases
-
         full_path = self._safe_join(path)
         self.ensure_directory(path)
-
-        # In this OS version, we overwrite more freely in candidate branches
-        # but the main OS should respect it.
         with open(full_path, 'w', encoding='utf-8') as f:
             f.write(content)
         return True

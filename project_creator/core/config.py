@@ -6,8 +6,9 @@ class Config:
         # Gemini 2.5 Flash is primary for this project
         self.api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
         if not self.api_key:
-            print("Gemini API Key missing.")
-            # self.api_key = getpass.getpass("API Key: ")
+            print("Gemini API Key missing from environment variables.")
+            # Fallback to interactive prompt as requested
+            self.api_key = getpass.getpass("Please enter your Gemini API Key: ")
 
         self.gemini_model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
         self.groq_api_key = os.getenv("GROQ_API_KEY")

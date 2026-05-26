@@ -6,7 +6,21 @@ class CoderAgent:
 
     def generate_file(self, file_path, description, blueprint, context):
         system_prompt = "You are a senior developer. Write full, production-ready source code. No explanations, no markdown blocks."
-        prompt = f"Blueprint: {json.dumps(blueprint)}\nFile: {file_path}\nDescription: {description}\nContext: {list(context.keys())}"
+
+        # Incremental assembly: Feed full code content back into the context
+        context_str = "\n".join([f"File: {p}\nContent:\n{c}\n---" for p, c in context.items()])
+
+        prompt = f"""
+        Project Blueprint: {json.dumps(blueprint)}
+
+        File to generate: {file_path}
+        Description: {description}
+
+        Current Project Context:
+        {context_str if context_str else "No files generated yet."}
+
+        Provide only the source code for {file_path}.
+        """
 
         content = self.router.generate(prompt, system_prompt)
         # Clean markdown

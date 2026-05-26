@@ -1,22 +1,31 @@
 import subprocess
 import os
+import shlex
 
 class ToolExecutor:
     def __init__(self, project_root):
         self.project_root = os.path.abspath(project_root)
-        self.allowed_commands = ["pytest", "ruff", "black", "alembic", "git status", "pip install", "python"]
+        # List of base commands allowed
+        self.allowed_bases = {"pytest", "ruff", "black", "alembic", "git", "pip", "python", "python3"}
 
     def execute(self, command):
-        # Basic safety check
-        cmd_base = command.split()[0]
-        if cmd_base not in self.allowed_commands and not command.startswith("python "):
-             return f"Error: Command '{cmd_base}' is not in the allowed list."
+        # Use shlex to safely split the command string
+        try:
+            cmd_args = shlex.split(command)
+        except ValueError as e:
+            return {"error": f"Invalid command syntax: {e}"}
+
+        if not cmd_args:
+             return {"error": "Empty command."}
+
+        cmd_base = cmd_args[0]
+        if cmd_base not in self.allowed_bases:
+             return {"error": f"Error: Command '{cmd_base}' is not in the allowed list."}
 
         try:
-            # Execute command within project root
+            # Execute command without shell=True to prevent injection
             result = subprocess.run(
-                command,
-                shell=True,
+                cmd_args,
                 cwd=self.project_root,
                 capture_output=True,
                 text=True,

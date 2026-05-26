@@ -32,8 +32,20 @@
     },
     "commands": [
       {
-        "command": "mini-jules.generate",
+        "command": "MiniJules.Generate",
         "title": "Jules: Generate Project"
+      },
+      {
+        "command": "MiniJules.Critique",
+        "title": "Jules: Critique File"
+      },
+      {
+        "command": "MiniJules.Repair",
+        "title": "Jules: Repair File"
+      },
+      {
+        "command": "MiniJules.Manifest",
+        "title": "Jules: Show Manifest"
       }
     ]
   },

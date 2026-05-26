@@ -1,8 +1,8 @@
 import os
 import sys
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Body
 from pydantic import BaseModel
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 
 # Ensure project_root is in sys.path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -33,7 +33,8 @@ class SessionState:
         self.manifest = None
         self.blueprint = None
         self.generated_files = {}
-        self.patches = []
+        self.patch_timeline = []
+        self.context_cache = {}
 
     @property
     def router(self):
@@ -58,74 +59,39 @@ class SessionState:
 
 state = SessionState()
 
-class GoalRequest(BaseModel):
-    goal: str
-    project_name: str
+@app.post("/ingest_context")
+async def ingest_context(ctx: Dict[str, Any]):
+    state.context_cache = ctx
+    return {"status": "ingested"}
 
 @app.post("/initialize")
-async def initialize_project(req: GoalRequest):
-    state.storage = Storage(req.project_name)
-    state.tools = ToolExecutor(req.project_name)
+async def initialize_project(goal: str = Body(...), project_name: str = Body(...)):
+    state.storage = Storage(project_name)
+    state.tools = ToolExecutor(project_name)
     state.manifest = ProjectManifest(state.storage.project_root)
-    return {"status": "initialized", "path": state.storage.project_root}
+    return {"status": "initialized"}
 
-@app.post("/plan")
-async def generate_blueprint(req: GoalRequest):
-    state.blueprint = state.planner.create_blueprint(req.goal)
-    state.manifest.create(req.goal, "python-vscode", [f['path'] for f in state.blueprint['files']])
-    return state.blueprint
+@app.get("/patch_timeline")
+async def get_patch_timeline():
+    return state.patch_timeline
 
 @app.get("/manifest")
 async def get_manifest():
-    if not state.manifest: return {"error": "no project"}
+    if not state.manifest: return {}
     return state.manifest.load()
 
-# --- Workspace Agent Endpoints ---
+@app.post("/generate_here")
+async def generate_here(path: str, context: str):
+    # Using context from active editor
+    content = state.coder.generate_file(path, "inline request", state.blueprint, state.generated_files)
+    return {"content": content}
 
-@app.get("/workspace/scan")
-async def scan_workspace():
-    if not state.storage: return {}
-    return state.storage.read_existing_files()
-
-@app.post("/workspace/read")
-async def read_files(paths: List[str]):
-    results = {}
-    for p in paths:
-        try:
-            full_path = state.storage._safe_join(p)
-            with open(full_path, 'r') as f:
-                results[p] = f.read()
-        except: pass
-    return results
-
-@app.get("/workspace/git_status")
-async def get_git_status():
-    if not state.tools: return {"error": "no tools"}
-    # The ToolExecutor now has a whitelist, so we use it
-    return state.tools.execute("git status")
-
-# --- Generation & Patching ---
-
-@app.post("/generate_file")
-async def generate_file(path: str, description: str):
-    content = state.coder.generate_file(path, description, state.blueprint, state.generated_files)
-    return {"path": path, "content": content}
-
-@app.post("/propose_patch")
-async def propose_patch(path: str, content: str):
-    critique = state.critique_agent.analyze(path, content, state.blueprint, state.generated_files)
-    patch = state.repair_agent.propose_patch(path, content, critique, state.blueprint, state.generated_files)
-    if patch:
-        state.patches.append(patch)
-    return patch
-
-@app.post("/apply_patch")
-async def apply_patch(path: str, content: str):
-    if state.storage.write_file(path, content):
-        state.generated_files[path] = content
-        state.manifest.add_approval(path)
-        return {"status": "success"}
-    return {"status": "failed"}
+# Re-including core endpoints
+@app.post("/plan")
+async def generate_blueprint(goal: str = Body(...)):
+    state.blueprint = state.planner.create_blueprint(goal)
+    state.manifest.create(goal, "python-vscode", [f['path'] for f in state.blueprint['files']])
+    return state.blueprint
 
 if __name__ == "__main__":
     import uvicorn

@@ -18,14 +18,20 @@ class Storage:
         if full_path and not os.path.exists(full_path):
             os.makedirs(full_path, exist_ok=True)
 
-    def write_file(self, path, content):
+    def write_file(self, path, content, interactive=True):
         full_path = self._safe_join(path)
         self.ensure_directory(path)
 
-        if os.path.exists(full_path):
-            choice = input(f"File {path} exists. [O]verwrite, [S]kip, [A]bort? ").lower()
-            if choice == 's': return False
-            if choice == 'a': exit(1)
+        if os.path.exists(full_path) and interactive:
+            # We only use interactive input if in a terminal
+            # Otherwise, we might want to default to skip or error
+            try:
+                choice = input(f"File {path} exists. [O]verwrite, [S]kip, [A]bort? ").lower()
+                if choice == 's': return False
+                if choice == 'a': exit(1)
+            except EOFError:
+                 # Non-interactive mode (e.g. Server), default to overwrite or handle via API
+                 pass
 
         with open(full_path, 'w', encoding='utf-8') as f:
             f.write(content)

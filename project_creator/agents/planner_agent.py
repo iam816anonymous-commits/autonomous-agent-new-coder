@@ -4,23 +4,26 @@ class PlannerAgent:
     def __init__(self, router):
         self.router = router
 
-    def create_blueprint(self, user_prompt, existing_structure=None):
+    def create_blueprint(self, user_prompt):
         system_prompt = """
-        You are a senior software architect. Generate a project blueprint in JSON format.
-        Include ecosystem files (requirements.txt, README.md, etc.).
-        Structure: {"project_name": "name", "files": [{"path": "path/to/file", "description": "desc"}]}
-        """
-        prompt = f"User Requirements: {user_prompt}\n"
-        if existing_structure:
-            prompt += f"Existing Structure: {json.dumps(existing_structure)}"
+        You are a senior software architect. Based on the user requirement, generate a structured multi-file project blueprint.
+        The blueprint must include:
+        - project_name
+        - modules: (e.g., backend, frontend, docs, tests)
+        - files: a list of objects with {"path": "module/file.py", "description": "purpose"}
 
-        response = self.router.generate_blueprint(prompt, system_prompt)
+        Output valid JSON only.
+        """
+        # Use specialized blueprint generator for reliable JSON/Context
+        response = self.router.generate_blueprint(user_prompt, system_prompt)
+        return self._extract_json(response)
+
+    def _extract_json(self, text):
         try:
-            return json.loads(response)
+            if "```json" in text:
+                text = text.split("```json")[1].split("```")[0]
+            elif "```" in text:
+                text = text.split("```")[1].split("```")[0]
+            return json.loads(text.strip())
         except:
-            # Basic extraction if JSON is wrapped in markdown
-            if "```json" in response:
-                response = response.split("```json")[1].split("```")[0]
-            elif "```" in response:
-                response = response.split("```")[1].split("```")[0]
-            return json.loads(response)
+            return None

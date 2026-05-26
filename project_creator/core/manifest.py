@@ -11,12 +11,13 @@ class ProjectManifest:
             "project": {
                 "id": f"proj_{int(time.time())}",
                 "goal": goal,
-                "status": "in_progress",
                 "stack": stack,
+                "status": "initialized",
                 "files": files,
+                "context": {},
                 "patches": {"pending": [], "approved": []},
-                "validation": {"tests": "pending"},
                 "approvals": [],
+                "validation": {"tests": "pending", "architecture_consistency": "pending"},
                 "sessions": []
             }
         }
@@ -28,17 +29,25 @@ class ProjectManifest:
         with open(self.path, 'r') as f:
             data = yaml.safe_load(f)
 
-        # Handle nested keys if needed, but simple for now
+        # Handle simple nesting for the project root
         data['project'][key] = value
 
         with open(self.path, 'w') as f:
             yaml.dump(data, f, sort_keys=False)
 
-    def log_approval(self, file_path):
+    def add_approval(self, file_path):
         if not os.path.exists(self.path): return
         with open(self.path, 'r') as f:
             data = yaml.safe_load(f)
         data['project']['approvals'].append(file_path)
+        with open(self.path, 'w') as f:
+            yaml.dump(data, f, sort_keys=False)
+
+    def add_session(self, session_id):
+        if not os.path.exists(self.path): return
+        with open(self.path, 'r') as f:
+            data = yaml.safe_load(f)
+        data['project']['sessions'].append(session_id)
         with open(self.path, 'w') as f:
             yaml.dump(data, f, sort_keys=False)
 

@@ -1,4 +1,4 @@
-import json
+from project_creator.core.utils import extract_json
 
 class RepairAgent:
     def __init__(self, router):
@@ -6,26 +6,9 @@ class RepairAgent:
 
     def propose_patch(self, file_path, content, critique, blueprint, context):
         system_prompt = """
-        You are a senior debugger. Propose a structured patch to resolve identified issues.
-        Output ONLY a JSON object with the following schema:
-        {
-          "file": "path",
-          "reason": "description of the defect",
-          "status": "pending",
-          "new_content": "the entire corrected file content"
-        }
+        You are a senior developer. Propose a structured patch in JSON.
+        Output schema: { "file": "path", "reason": "why", "status": "pending", "new_content": "code" }
         """
-        prompt = f"File: {file_path}\nCritique: {critique}\nOriginal Content:\n{content}"
-
+        prompt = f"File: {file_path}\nCritique: {critique}\nOriginal:\n{content}"
         response = self.router.generate(prompt, system_prompt)
-        return self._extract_json(response)
-
-    def _extract_json(self, text):
-        try:
-            if "```json" in text:
-                text = text.split("```json")[1].split("```")[0]
-            elif "```" in text:
-                text = text.split("```")[1].split("```")[0]
-            return json.loads(text.strip())
-        except:
-            return None
+        return extract_json(response)

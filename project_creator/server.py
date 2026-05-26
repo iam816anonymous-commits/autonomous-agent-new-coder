@@ -13,6 +13,7 @@ if project_root not in sys.path:
 from project_creator.core.storage import Storage
 from project_creator.core.tools import ToolExecutor
 from project_creator.core.manifest import ProjectManifest
+from project_creator.core.session import SessionManager
 from project_creator.router.provider_router import ProviderRouter
 from project_creator.agents.planner_agent import PlannerAgent
 from project_creator.agents.coder_agent import CoderAgent
@@ -31,10 +32,9 @@ class SessionState:
         self.storage = None
         self.tools = None
         self.manifest = None
+        self.session = None
         self.blueprint = None
         self.generated_files = {}
-        self.patch_timeline = []
-        self.context_cache = {}
 
     @property
     def router(self):
@@ -59,39 +59,35 @@ class SessionState:
 
 state = SessionState()
 
-@app.post("/ingest_context")
-async def ingest_context(ctx: Dict[str, Any]):
-    state.context_cache = ctx
-    return {"status": "ingested"}
-
 @app.post("/initialize")
 async def initialize_project(goal: str = Body(...), project_name: str = Body(...)):
     state.storage = Storage(project_name)
     state.tools = ToolExecutor(project_name)
     state.manifest = ProjectManifest(state.storage.project_root)
-    return {"status": "initialized"}
+    state.session = SessionManager(state.storage.project_root)
+    state.manifest.create(goal, "python-v1", [])
+    return {"status": "initialized", "id": project_name}
 
-@app.get("/patch_timeline")
-async def get_patch_timeline():
-    return state.patch_timeline
+@app.post("/plan")
+async def plan_project(goal: str = Body(...)):
+    state.blueprint = state.planner.create_blueprint(goal)
+    state.manifest.update_field("files", [f['path'] for f in state.blueprint['files']])
+    state.session.save_session(state.blueprint, state.generated_files, [], [])
+    return state.blueprint
+
+@app.post("/apply")
+async def apply_file(path: str = Body(...), content: str = Body(...)):
+    if state.storage.write_file(path, content, interactive=False):
+        state.generated_files[path] = content
+        state.manifest.add_approval(path)
+        state.session.save_session(state.blueprint, state.generated_files, [], [p for p in state.generated_files])
+        return {"status": "success"}
+    return {"status": "error"}
 
 @app.get("/manifest")
 async def get_manifest():
     if not state.manifest: return {}
     return state.manifest.load()
-
-@app.post("/generate_here")
-async def generate_here(path: str, context: str):
-    # Using context from active editor
-    content = state.coder.generate_file(path, "inline request", state.blueprint, state.generated_files)
-    return {"content": content}
-
-# Re-including core endpoints
-@app.post("/plan")
-async def generate_blueprint(goal: str = Body(...)):
-    state.blueprint = state.planner.create_blueprint(goal)
-    state.manifest.create(goal, "python-vscode", [f['path'] for f in state.blueprint['files']])
-    return state.blueprint
 
 if __name__ == "__main__":
     import uvicorn

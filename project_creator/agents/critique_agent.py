@@ -1,4 +1,5 @@
 import json
+from project_creator.core.utils import extract_json
 
 class CritiqueAgent:
     def __init__(self, router):
@@ -6,12 +7,15 @@ class CritiqueAgent:
 
     def analyze(self, file_path, content, blueprint, context):
         system_prompt = """
-        You are a critical code reviewer. Check for:
-        - Missing imports
-        - Broken paths
-        - Dependency errors
-        - Architecture mismatch with the blueprint
-        Output 'PASS' if perfect, otherwise list issues.
+        You are a senior critical engineer. Analyze the code for defects.
+        You can request tool verification (e.g. pytest).
+        Output JSON:
+        {
+          "verdict": "PASS" or "FAIL",
+          "issues": [],
+          "verification_command": "optional shell command"
+        }
         """
-        prompt = f"File: {file_path}\nContent:\n{content}\nBlueprint: {json.dumps(blueprint)}"
-        return self.router.generate(prompt, system_prompt)
+        prompt = f"File: {file_path}\nContent:\n{content}"
+        response = self.router.generate(prompt, system_prompt)
+        return extract_json(response)

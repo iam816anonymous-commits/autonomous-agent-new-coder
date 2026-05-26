@@ -11,37 +11,35 @@ class MemoryLayer:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
 
-            # Evolution Scorecards
+            # Ecosystem Metrics
             cursor.execute('''
-                CREATE TABLE IF NOT EXISTS evolution_scorecards (
+                CREATE TABLE IF NOT EXISTS ecosystem_metrics (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    candidate_id TEXT,
-                    latency_delta REAL,
-                    cost_delta REAL,
-                    tests_delta INTEGER,
-                    approval_rate REAL,
-                    repair_success REAL,
-                    promotion_status TEXT, -- approved, rejected
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    avg_quality_score REAL,
+                    promotion_rate REAL,
+                    rollback_rate REAL,
+                    drift_rate REAL
                 )
             ''')
 
-            # Version History with Ancestry (Graph)
+            # Expanded Version Lineage
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS versions (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     version_tag TEXT UNIQUE,
                     parent_version TEXT,
-                    accuracy REAL,
-                    latency REAL,
-                    cost REAL,
-                    tests_passed INTEGER,
                     is_champion INTEGER DEFAULT 0,
+                    is_retired INTEGER DEFAULT 0,
+                    metrics TEXT, -- JSON: latency, cost, tests_passed
+                    deployment_id INTEGER,
+                    telemetry_id INTEGER,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
 
-            # Re-initialize all tables from v6
+            # Re-initialize all other tables
+            cursor.execute('CREATE TABLE IF NOT EXISTS evolution_scorecards (id INTEGER PRIMARY KEY AUTOINCREMENT, candidate_id TEXT, latency_delta REAL, cost_delta REAL, tests_delta INTEGER, approval_rate REAL, repair_success REAL, promotion_status TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)')
             cursor.execute('CREATE TABLE IF NOT EXISTS evolution_history (id INTEGER PRIMARY KEY AUTOINCREMENT, current_version TEXT, candidate_version TEXT, winner TEXT, comparison_data TEXT, status TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)')
             cursor.execute('CREATE TABLE IF NOT EXISTS knowledge_graph (file_path TEXT PRIMARY KEY, dependencies TEXT, owner_agent TEXT, risk_score REAL, service TEXT, deploy_target TEXT)')
             cursor.execute('CREATE TABLE IF NOT EXISTS environments (name TEXT PRIMARY KEY, current_version TEXT, status TEXT)')
@@ -55,51 +53,54 @@ class MemoryLayer:
 
             conn.commit()
 
-    def add_scorecard(self, scorecard_data):
+    def update_ecosystem_scoreboard(self, metrics):
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute('''
-                INSERT INTO evolution_scorecards (candidate_id, latency_delta, cost_delta, tests_delta, approval_rate, repair_success, promotion_status)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            ''', (
-                scorecard_data['candidate'],
-                scorecard_data['latency_delta'],
-                scorecard_data['cost_delta'],
-                scorecard_data['tests_delta'],
-                scorecard_data['approval_rate'],
-                scorecard_data['repair_success'],
-                scorecard_data['promotion']
-            ))
+                INSERT INTO ecosystem_metrics (avg_quality_score, promotion_rate, rollback_rate, drift_rate)
+                VALUES (?, ?, ?, ?)
+            ''', (metrics['quality'], metrics['promotion'], metrics['rollback'], metrics['drift']))
             conn.commit()
 
     def add_version(self, version_data):
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
-            # If this is a champion, un-champion others
             if version_data.get('is_champion'):
-                cursor.execute('UPDATE versions SET is_champion = 0')
+                cursor.execute('UPDATE versions SET is_champion = 0 WHERE is_champion = 1')
 
             cursor.execute('''
-                INSERT OR REPLACE INTO versions (version_tag, parent_version, accuracy, latency, cost, tests_passed, is_champion)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT OR REPLACE INTO versions (version_tag, parent_version, is_champion, metrics)
+                VALUES (?, ?, ?, ?)
             ''', (
                 version_data['tag'],
                 version_data.get('parent'),
-                version_data.get('accuracy', 0),
-                version_data.get('latency', 0),
-                version_data.get('cost', 0),
-                version_data.get('tests_passed', 0),
-                1 if version_data.get('is_champion') else 0
+                1 if version_data.get('is_champion') else 0,
+                json.dumps(version_data.get('metrics', {}))
             ))
+            conn.commit()
+
+    def retire_champion(self, version_tag):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('UPDATE versions SET is_champion = 0, is_retired = 1 WHERE version_tag = ?', (version_tag,))
             conn.commit()
 
     def get_champion_version(self):
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
-            cursor.execute('SELECT version_tag, latency, cost, tests_passed FROM versions WHERE is_champion = 1')
-            return cursor.fetchone()
+            cursor.execute('SELECT version_tag, metrics FROM versions WHERE is_champion = 1')
+            row = cursor.fetchone()
+            if row:
+                return row[0], json.loads(row[1])
+            return None, {}
 
-    # Necessary methods from v6
+    # Necessary methods from v7
+    def add_scorecard(self, scorecard_data):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('INSERT INTO evolution_scorecards (candidate_id, latency_delta, cost_delta, tests_delta, approval_rate, repair_success, promotion_status) VALUES (?, ?, ?, ?, ?, ?, ?)', (scorecard_data['candidate'], scorecard_data['latency_delta'], scorecard_data['cost_delta'], scorecard_data['tests_delta'], scorecard_data['approval_rate'], scorecard_data['repair_success'], scorecard_data['promotion']))
+            conn.commit()
+
     def log_evolution(self, current, candidate, winner, comparison):
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
@@ -130,19 +131,6 @@ class MemoryLayer:
             cursor.execute('SELECT key, value FROM user_preferences')
             return dict(cursor.fetchall())
 
-    def log_audit(self, file_path, audit_type, result):
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute('CREATE TABLE IF NOT EXISTS audit_log (id INTEGER PRIMARY KEY AUTOINCREMENT, file_path TEXT, audit_type TEXT, result TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)')
-            cursor.execute('INSERT INTO audit_log (file_path, audit_type, result) VALUES (?, ?, ?)', (file_path, audit_type, result))
-            conn.commit()
-
-    def update_preference(self, key, value):
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute('INSERT OR REPLACE INTO user_preferences (key, value) VALUES (?, ?)', (key, value))
-            conn.commit()
-
     def log_deployment(self, env, version, patch_id, status, rollback=None):
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
@@ -162,3 +150,10 @@ class MemoryLayer:
             cursor.execute('SELECT value FROM telemetry_logs WHERE env = ? AND metric = ? ORDER BY timestamp DESC LIMIT 1', (env, metric))
             row = cursor.fetchone()
             return row[0] if row else None
+
+    def log_audit(self, file_path, audit_type, result):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('CREATE TABLE IF NOT EXISTS audit_log (id INTEGER PRIMARY KEY AUTOINCREMENT, file_path TEXT, audit_type TEXT, result TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)')
+            cursor.execute('INSERT INTO audit_log (file_path, audit_type, result) VALUES (?, ?, ?)', (file_path, audit_type, result))
+            conn.commit()

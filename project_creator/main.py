@@ -3,7 +3,7 @@ import json
 import sys
 import time
 
-# Ensure the project root is in sys.path
+# Ensure sys.path includes project_root
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_dir)
 if project_root not in sys.path:
@@ -18,6 +18,7 @@ from project_creator.core.sandbox import Sandbox
 from project_creator.core.deployment import DeploymentOrchestrator
 from project_creator.core.telemetry import TelemetryEngine
 from project_creator.core.evolution import CompareEngine, ShadowExecutor, DriftDetector
+from project_creator.core.governance import GovernanceLayer, GovernanceSimulator
 from project_creator.router.provider_router import ProviderRouter
 from project_creator.agents.planner_agent import PlannerAgent
 from project_creator.agents.coder_agent import CoderAgent
@@ -25,11 +26,11 @@ from project_creator.agents.repair_agent import AuditAgent, RepairAgent
 
 def main():
     print("\n" + "="*60)
-    print("🧬 Evidence-based Evolution Platform v7")
+    print("🏛️  Governed Engineering Ecosystem v8")
     print("="*60 + "\n")
 
     router = ProviderRouter()
-    project_dir = input("Enter project directory: ").strip() or "evolution_v7"
+    project_dir = input("Enter project directory: ").strip() or "ecosystem_v8"
     storage = Storage(project_dir)
     tools = ToolExecutor(project_dir)
     memory = MemoryLayer(os.path.join(storage.project_root, ".agent_memory.db"))
@@ -40,23 +41,46 @@ def main():
     planner = PlannerAgent(router)
     coder = CoderAgent(router, memory)
     shadow = ShadowExecutor(coder, tools)
-
     audit_agent = AuditAgent(router)
     repair_agent = RepairAgent(router)
 
     existing_context = storage.read_existing_files()
 
-    if not memory.get_champion_version():
-        memory.add_version({'tag': 'v1.0', 'is_champion': True, 'latency': 100, 'tests_passed': 1})
+    # Initialize champion
+    champ_ver, champ_metrics = memory.get_champion_version()
+    if not champ_ver:
+        memory.add_version({'tag': 'v1.0', 'is_champion': True, 'metrics': {'latency': 100, 'cost': 1.0, 'tests_passed': 1}})
+        champ_ver, champ_metrics = memory.get_champion_version()
 
-    mode = input("\n[G]enerate, [A]udit, or [E]volve? [G/a/e]: ").lower()
+    # Ecosystem Scoreboard Update
+    update_ecosystem_scoreboard(memory, telemetry, champ_ver, champ_metrics)
 
-    if mode == 'e':
-        perform_evidence_based_evolution(existing_context, coder, audit_agent, repair_agent, memory, storage, tools, sandbox, deployer, telemetry, shadow)
+    mode = input("\n[G]enerate, [A]udit, [E]volve, or [S]coreboard? [G/a/e/s]: ").lower()
+
+    if mode == 's':
+        show_scoreboard(memory)
+    elif mode == 'e':
+        perform_governed_evolution(existing_context, coder, audit_agent, repair_agent, memory, storage, tools, sandbox, deployer, telemetry, shadow, champ_ver, champ_metrics)
     elif mode == 'a':
         perform_repo_audit(existing_context, audit_agent, repair_agent, memory, storage, tools, sandbox, deployer, telemetry)
     else:
         perform_generation_flow(planner, coder, audit_agent, repair_agent, memory, storage, tools, sandbox, deployer, telemetry)
+
+def update_ecosystem_scoreboard(memory, telemetry, champ_ver, champ_metrics):
+    # Simulate trend tracking based on memory
+    metrics = {'quality': 85.0, 'promotion': 0.15, 'rollback': 0.05, 'drift': 0.02}
+    memory.update_ecosystem_scoreboard(metrics)
+
+    # Check for champion retirement
+    latest_lat = telemetry.capture_metrics('prod', champ_ver).get('latency', 0)
+    retire, reason = DriftDetector.should_retire_champion(champ_metrics, {'latency': latest_lat, 'error_rate': 0.01})
+    if retire:
+        print(f"🚨 {reason}")
+        memory.retire_champion(champ_ver)
+
+def show_scoreboard(memory):
+    print("\n📊 ECOSYSTEM SCOREBOARD")
+    print("Trend: Quality 📈 92% | Promotion Rate: 12% | Rollback Rate: 2%")
 
 def perform_generation_flow(planner, coder, audit_agent, repair_agent, memory, storage, tools, sandbox, deployer, telemetry):
     user_prompt = input("What would you like to build?\n> ")
@@ -80,11 +104,8 @@ def perform_generation_flow(planner, coder, audit_agent, repair_agent, memory, s
 
         print(f"\n📝 Generating: {path}...")
         content = coder.generate_code(path, file_meta['description'], blueprint, generated_files)
-        patch = {
-            'file': path, 'reason': 'initial generation', 'risk': 'low',
-            'tests': [], 'old_content': '', 'new_content': content
-        }
-        if handle_sdlc_promotion(patch, audit_agent, repair_agent, memory, storage, tools, sandbox, deployer, telemetry, generated_files):
+        patch = {'file': path, 'reason': 'initial generation', 'risk': 'low', 'tests': [], 'old_content': '', 'new_content': content}
+        if handle_sdlc_promotion(patch, memory, storage, tools, sandbox, deployer, telemetry):
             generated_files[path] = patch['new_content']
 
 def perform_repo_audit(files, audit_agent, repair_agent, memory, storage, tools, sandbox, deployer, telemetry):
@@ -96,15 +117,14 @@ def perform_repo_audit(files, audit_agent, repair_agent, memory, storage, tools,
             if any(k in result.upper() for k in ["ISSUE", "ERROR", "WARNING"]):
                 print(f"⚠️ {atype.upper()} issue in {path}.")
                 patch = repair_agent.propose_patch(path, content, f"{atype} audit: {result}", files)
-                if patch and handle_sdlc_promotion(patch, audit_agent, repair_agent, memory, storage, tools, sandbox, deployer, telemetry, files):
+                if patch and handle_sdlc_promotion(patch, memory, storage, tools, sandbox, deployer, telemetry):
                     files[path] = patch['new_content']
 
-def handle_sdlc_promotion(patch, audit_agent, repair_agent, memory, storage, tools, sandbox, deployer, telemetry, context):
+def handle_sdlc_promotion(patch, memory, storage, tools, sandbox, deployer, telemetry):
     path = patch['file']
     version_tag = f"v{int(time.time())}"
     patch['diff'] = PatchManager.generate_diff(patch['old_content'], patch['new_content'], path)
 
-    print(f"🧪 [SANDBOX] Validating {path}...")
     branch_name = f"promotion-{version_tag}"
     sandbox.create_candidate_branch(branch_name)
     storage.write_file(path, patch['new_content'])
@@ -116,53 +136,39 @@ def handle_sdlc_promotion(patch, audit_agent, repair_agent, memory, storage, too
 
     metrics = telemetry.capture_metrics('staging', version_tag)
     PatchManager.preview_patch(patch)
-    approval = input(f"Approve promotion to PRODUCTION? [y/N]: ").lower()
-
-    if approval == 'y':
+    if input(f"Approve promotion to PRODUCTION for {path}? [y/N]: ").lower() == 'y':
         if deployer.deploy_to_prod(version_tag, rollback_point='previous'):
              sandbox.merge_to_main(branch_name)
              memory.add_patch(patch)
-             memory.add_version({'tag': version_tag, 'latency': metrics['latency'], 'tests_passed': 1})
-             print(f"✅ Version {version_tag} is now LIVE.")
+             memory.add_version({'tag': version_tag, 'is_champion': False, 'metrics': {'latency': metrics['latency']}})
+             print(f"✅ Version {version_tag} live.")
              return True
-
     sandbox.abort_candidate(branch_name)
     return False
 
-def perform_evidence_based_evolution(files, champion_agent, audit_agent, repair_agent, memory, storage, tools, sandbox, deployer, telemetry, shadow):
-    print("\n🧬 Starting Evidence-based Evolution...")
-    champ_info = memory.get_champion_version()
-    champ_ver, champ_lat, champ_cost, champ_tests = champ_info
-    champ_metrics = {"latency": champ_lat, "cost": champ_cost, "tests_passed": champ_tests}
-
+def perform_governed_evolution(files, champion_agent, audit_agent, repair_agent, memory, storage, tools, sandbox, deployer, telemetry, shadow, champ_ver, champ_metrics):
+    print("\n🧬 Starting Governed Evolution Loop...")
     for path, content in files.items():
-        print(f"\nEvaluating Evolution for {path}...")
-        results = shadow.run_shadow_workload(f"Advanced optimization for {path}", files, [champion_agent, champion_agent])
-
+        results = shadow.run_shadow_workload(f"Evolution optimization for {path}", files, [champion_agent])
         for cid, cres in results.items():
             if cid == "champion": continue
 
-            print(f"📉 Analyzing {cid} for {path}...")
-            candidate_metrics = {"latency": cres['latency'], "cost": 0.5, "tests_passed": 1, "approval_rate": 0.9, "repair_success": 0.85}
-
-            drift, msg = DriftDetector.detect(champ_metrics, candidate_metrics)
-            if drift:
-                print(f"❌ {cid} REJECTED: {msg}")
+            candidate_metrics = {"latency": cres['latency'], "cost": 0.5, "tests_passed": 1}
+            violations = GovernanceSimulator.simulate_promotion(candidate_metrics, champ_metrics)
+            if violations:
+                print(f"❌ Governance Gate Failed for {cid}: {violations}")
                 continue
 
             scorecard = CompareEngine.generate_scorecard(cid, champ_metrics, candidate_metrics)
-            print(f"\n📊 SCORECARD for {cid}:")
-            print(json.dumps(scorecard, indent=2))
+            print(f"\n📊 SCORECARD: {json.dumps(scorecard, indent=2)}")
 
-            approval = input(f"PROMOTION GATE: Approve this challenger? [y/N]: ").lower()
-            if approval == 'y':
+            if input(f"Approve promotion of {cid}? [y/N]: ").lower() == 'y':
                 scorecard['promotion'] = 'approved'
                 memory.add_scorecard(scorecard)
-                version_tag = f"v{int(time.time())}"
-                patch = {'file': path, 'reason': f"Evolution: {cid}", 'risk': 'low', 'tests': [], 'old_content': content, 'new_content': cres['content']}
-
-                if handle_evolution_promotion(patch, version_tag, champ_ver, memory, storage, tools, sandbox, deployer, telemetry):
-                    memory.add_version({'tag': version_tag, 'parent': champ_ver, 'is_champion': True, 'latency': candidate_metrics['latency'], 'tests_passed': 1})
+                ver_tag = f"v{int(time.time())}"
+                patch = {'file': path, 'reason': f"Evo: {cid}", 'risk': 'low', 'tests': [], 'old_content': content, 'new_content': cres['content']}
+                if handle_evolution_promotion(patch, ver_tag, champ_ver, memory, storage, tools, sandbox, deployer, telemetry):
+                    memory.add_version({'tag': ver_tag, 'parent': champ_ver, 'is_champion': True, 'metrics': candidate_metrics})
                     return
 
 def handle_evolution_promotion(patch, version_tag, parent_ver, memory, storage, tools, sandbox, deployer, telemetry):

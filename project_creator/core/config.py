@@ -7,12 +7,13 @@ class Config:
         self.api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
         if not self.api_key:
             print("Gemini API Key not found in environment variables.")
-            # self.api_key = getpass.getpass("Please enter your Gemini API Key: ")
+            # Fallback to interactive prompt as requested
+            self.api_key = getpass.getpass("Please enter your Gemini API Key: ")
 
         self.groq_api_key = os.getenv("GROQ_API_KEY")
         self.openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
 
-        # Model Names - User requested 2.5 Flash as default where possible
+        # Model Names
         self.gemini_model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
         self.groq_model = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
         self.openrouter_model = os.getenv("OPENROUTER_MODEL", "anthropic/claude-3.5-sonnet")

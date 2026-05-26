@@ -1,19 +1,20 @@
 class EconomicScorer:
     @staticmethod
-    def calculate_score(metrics):
+    def calculate_champion_score(metrics):
         """
-        score = quality + latency_gain + trust - cost - rollback_risk
+        champion_score = quality_gain + trust_gain + roi - rollback_risk - cost
         """
-        quality = metrics.get('quality', 0) * 0.4
-        latency_gain = metrics.get('latency_gain', 0) * 0.2
-        trust = metrics.get('trust_score', 0) * 0.2
-        cost = metrics.get('cost', 0) * 0.1
+        # Multipliers represent business value importance
+        quality_gain = metrics.get('quality_gain', 0) * 0.3
+        trust_gain = metrics.get('trust_gain', 0) * 0.3
+        roi = metrics.get('roi_hours', 0) * 0.2
         risk = metrics.get('rollback_risk', 0) * 0.1
+        cost = metrics.get('cost', 0) * 0.1
 
-        score = quality + latency_gain + trust - cost - risk
+        score = quality_gain + trust_gain + roi - risk - cost
         return round(score, 2)
 
     @staticmethod
     def should_promote(candidate_score, champion_score):
-        # Promotion becomes economic: only promote if score is higher
+        # Promotion is purely value-driven: higher score wins.
         return candidate_score > champion_score

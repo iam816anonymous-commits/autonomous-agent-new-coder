@@ -5,25 +5,31 @@ class CoderAgent:
         self.router = router
 
     def generate_file(self, file_path, description, blueprint, context):
-        system_prompt = "You are a senior developer. Write full, production-ready source code. No explanations, no markdown blocks."
+        system_prompt = """
+        You are an elite senior software engineer. Write high-quality, production-ready source code.
+        Requirements:
+        - Include proper error handling and logging.
+        - Use type hints and docstrings.
+        - Follow security best practices (no hardcoded secrets).
+        - Ensure architectural consistency with existing project files.
+        - Output ONLY source code, no markdown blocks, no explanations.
+        """
 
-        # Incremental assembly: Feed full code content back into the context
         context_str = "\n".join([f"File: {p}\nContent:\n{c}\n---" for p, c in context.items()])
 
         prompt = f"""
-        Project Blueprint: {json.dumps(blueprint)}
-
-        File to generate: {file_path}
+        Blueprint: {json.dumps(blueprint)}
+        File Path: {file_path}
         Description: {description}
 
-        Current Project Context:
-        {context_str if context_str else "No files generated yet."}
+        Existing Project Context:
+        {context_str if context_str else "Starting fresh."}
 
-        Provide only the source code for {file_path}.
+        Generate the implementation for {file_path}.
         """
 
         content = self.router.generate(prompt, system_prompt)
-        # Clean markdown
+        # Final safety: strip markdown if the model fails to follow instruction
         if content.startswith("```"):
             lines = content.splitlines()
             if lines[0].startswith("```"): lines = lines[1:]

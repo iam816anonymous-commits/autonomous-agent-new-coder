@@ -24,7 +24,7 @@ def main():
     print("="*50 + "\n")
 
     router = ProviderRouter()
-    project_dir = input("Project Name: ").strip() or "validated_app"
+    project_dir = input("Project Name: ").strip() or "prod_jules_app"
     storage = Storage(project_dir)
     tools = ToolExecutor(project_dir)
     manifest = ProjectManifest(storage.project_root)
@@ -40,8 +40,8 @@ def main():
         if input("Resume session? [Y/n] ").lower() != 'n':
             blueprint = s_data['blueprint']
             generated_files = s_data['generated_files']
-            repairs = s_data['repairs']
-            approvals = s_data['approvals']
+            repairs = s_data.get('repairs', [])
+            approvals = s_data.get('approvals', [])
         else: s_data = None
 
     if not s_data:
@@ -61,13 +61,10 @@ def main():
             elif refine in ['a', 'r']:
                 feedback = input("Enter feedback: ")
                 print("\n🔄 Updating blueprint...")
-                blueprint = planner.create_blueprint(f"Update blueprint: {feedback}. Original goal: {user_prompt}")
+                blueprint = planner.create_blueprint(f"Update blueprint based on feedback: {feedback}. Original goal: {user_prompt}")
+            else: print("Invalid choice.")
 
-        manifest.create(
-            blueprint.get('project_name', 'jules_app'),
-            {"backend": "fastapi", "frontend": "unknown"},
-            [f['path'] for f in blueprint['files']]
-        )
+        manifest.create(user_prompt, "python-fastapi", [f['path'] for f in blueprint['files']])
         generated_files, repairs, approvals = {}, [], []
 
     for file_meta in blueprint['files']:
@@ -75,24 +72,35 @@ def main():
         if path in generated_files: continue
 
         print(f"\n📝 Generating: {path}...")
-        # Full content context passed here
         content = coder.generate_file(path, file_meta['description'], blueprint, generated_files)
 
+        # Validation Loop
         while True:
+            # Note: We must write to a candidate location or buffer for linting
+            # For simplicity in this terminal agent, we'll critique based on content buffer
+            print(f"🔍 Critiquing {path}...")
             critique = critique_agent.analyze(path, content, blueprint, generated_files)
-            if "PASS" in critique.upper(): break
 
-            print(f"🛠️  Patch Proposed for {path}")
+            if "PASS" in critique.upper():
+                print(f"✅ Critique Passed for {path}")
+                break
+
+            print(f"🛠️  Proposing Patch for {path}...")
             patch = repair_agent.propose_patch(path, content, critique, blueprint, generated_files)
-            if patch and patch.get('action') == 'repair':
-                manifest.add_patch(path, approved=False)
-                if input(f"Approve repair patch for {path}? [y/N]: ").lower() == 'y':
+
+            if patch and patch.get('state') == 'pending':
+                print(f"\n--- Patch Proposal: {path} ---")
+                print(f"Reason: {patch.get('reason')}")
+                print("-" * 30)
+                if input("Approve and Stage Patch? [y/N]: ").lower() == 'y':
                     content = patch['new_content']
-                    manifest.add_patch(path, approved=True)
+                    patch['state'] = 'approved'
+                    repairs.append(patch)
                 else: break
             else: break
 
-        print(f"\n--- Preview: {path} ---")
+        # Final Human Gate
+        print(f"\n--- Final Review: {path} ---")
         print(content[:500] + ("..." if len(content) > 500 else ""))
         print("-" * 30)
 
@@ -100,19 +108,19 @@ def main():
         if choice == 'c':
             if storage.write_file(path, content):
                 generated_files[path] = content
-                approvals.append(path)
+                manifest.log_approval(path)
                 if path.endswith(".py"): tools.run_format(path)
-                session.save_session(blueprint, generated_files, repairs, approvals)
+                session.save_session(blueprint, generated_files, repairs, [path for path in generated_files])
         elif choice == 'e':
+            print("Edit: Paste content (Ctrl-D):")
             content = sys.stdin.read()
             if storage.write_file(path, content):
                 generated_files[path] = content
-                session.save_session(blueprint, generated_files, repairs, approvals)
+                session.save_session(blueprint, generated_files, repairs, [path for path in generated_files])
         elif choice == 'r': continue
         else: print(f"Skipped {path}")
 
-    manifest.update_status("validated")
-    manifest.update_validation("pass")
+    manifest.update_field("status", "validated")
     print(f"\n🚀 Validated Project Ready!")
 
 if __name__ == "__main__":

@@ -10,7 +10,7 @@ class Config:
             # Fallback to interactive prompt as requested
             self.api_key = getpass.getpass("Please enter your Gemini API Key: ")
 
-        self.gemini_model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+        self.gemini_model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
         self.groq_api_key = os.getenv("GROQ_API_KEY")
         self.openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
         self.chatgpt_cookies_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "browser", "cookies.json")

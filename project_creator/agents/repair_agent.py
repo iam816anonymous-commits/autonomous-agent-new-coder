@@ -6,13 +6,14 @@ class RepairAgent:
 
     def propose_patch(self, file_path, content, critique, blueprint, context):
         system_prompt = """
-        You are a senior developer. Propose a patch to fix identified issues.
-        Output valid JSON only:
+        You are a senior debugger. Propose a structured patch to resolve critique issues.
+        The patch must maintain high code quality and security standards.
+        Output ONLY a JSON object with the following schema:
         {
           "file": "path",
-          "reason": "why",
-          "action": "repair",
-          "new_content": "corrected code"
+          "reason": "description of the issue",
+          "state": "pending",
+          "new_content": "corrected source code"
         }
         """
         prompt = f"File: {file_path}\nCritique: {critique}\nOriginal Content:\n{content}"

@@ -5,41 +5,42 @@ import shlex
 class ToolExecutor:
     def __init__(self, project_root):
         self.project_root = os.path.abspath(project_root)
-        # Sandbox Constitution: Strictly whitelisted commands
+        # Sandbox Constitution: ALLOW list
         self.allowed_bases = {"pytest", "ruff", "black", "python3"}
 
     def execute(self, command):
         try:
             cmd_args = shlex.split(command)
         except ValueError as e:
-            return {"error": f"Invalid syntax: {e}"}
+            return {"error": f"Syntax Error: {e}"}
 
         if not cmd_args: return {"error": "Empty command."}
 
         cmd_base = cmd_args[0]
 
-        # Hardened Reject: Escalation, System, Credentials, Recursive
+        # Sandbox Constitution: DENY list & Hard Checks
         if cmd_base not in self.allowed_bases:
-            return {"error": f"Sandbox Rejection: Command '{cmd_base}' is restricted."}
+            return {"error": f"Sandbox Rejection: '{cmd_base}' is restricted."}
 
-        # Forbidden patterns for credentials/system edits/shell escalation
-        forbidden = {
+        forbidden_patterns = {
             "sudo", "chmod", "chown", "env", ".env", "passwd", "shadow",
-            "rm -rf /", "git", "pip", "sh", "bash", "curl", "wget"
+            "rm -rf /", "git", "pip", "bash", "sh", "curl", "wget"
         }
 
-        full_cmd_str = " ".join(cmd_args).lower()
-        for pattern in forbidden:
-            if pattern in full_cmd_str:
-                return {"error": f"Constitution Violation: Forbidden pattern detected."}
+        full_cmd = " ".join(cmd_args).lower()
+        for pattern in forbidden_patterns:
+            if pattern in full_cmd:
+                 return {"error": f"Constitution Violation: '{pattern}' is forbidden."}
 
         try:
+            # Final block for recursive execution attempts or shell escalation
             result = subprocess.run(
                 cmd_args,
                 cwd=self.project_root,
                 capture_output=True,
                 text=True,
-                timeout=30
+                timeout=30,
+                shell=False # Immutable: never use shell=True
             )
             return {
                 "stdout": result.stdout,

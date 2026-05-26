@@ -21,6 +21,12 @@ class Storage:
     def write_file(self, path, content):
         full_path = self._safe_join(path)
         self.ensure_directory(path)
+
+        if os.path.exists(full_path):
+            choice = input(f"File {path} exists. [O]verwrite, [S]kip, [A]bort? ").lower()
+            if choice == 's': return False
+            if choice == 'a': exit(1)
+
         with open(full_path, 'w', encoding='utf-8') as f:
             f.write(content)
         return True
@@ -39,7 +45,7 @@ class Storage:
     def read_existing_files(self):
         files_context = {}
         if not os.path.exists(self.project_root): return files_context
-        ignored_dirs = {'.git', '__pycache__', 'node_modules', '.agent_memory.db'}
+        ignored_dirs = {'.git', '__pycache__', 'node_modules'}
         for root, dirs, files in os.walk(self.project_root):
             dirs[:] = [d for d in dirs if d not in ignored_dirs]
             for file in files:

@@ -1,56 +1,44 @@
 import yaml
 import os
+import time
 
 class ProjectManifest:
     def __init__(self, project_root):
         self.path = os.path.join(project_root, "project.yaml")
 
-    def create(self, name, stack, generated_files):
+    def create(self, goal, stack, files):
         data = {
             "project": {
-                "name": name,
+                "id": f"proj_{int(time.time())}",
+                "goal": goal,
                 "status": "in_progress",
-                "stack": {
-                    "backend": stack.get("backend", "unknown"),
-                    "frontend": stack.get("frontend", "unknown")
-                },
-                "files": {
-                    "generated": generated_files
-                },
-                "patches": {
-                    "pending": [],
-                    "approved": []
-                },
-                "validation": {
-                    "tests": "pending"
-                }
+                "stack": stack,
+                "files": files,
+                "patches": {"pending": [], "approved": []},
+                "validation": {"tests": "pending"},
+                "approvals": [],
+                "sessions": []
             }
         }
         with open(self.path, 'w') as f:
             yaml.dump(data, f, sort_keys=False)
 
-    def update_status(self, status):
+    def update_field(self, key, value):
         if not os.path.exists(self.path): return
         with open(self.path, 'r') as f:
             data = yaml.safe_load(f)
-        data['project']['status'] = status
+
+        # Handle nested keys if needed, but simple for now
+        data['project'][key] = value
+
         with open(self.path, 'w') as f:
             yaml.dump(data, f, sort_keys=False)
 
-    def add_patch(self, patch_file, approved=False):
+    def log_approval(self, file_path):
         if not os.path.exists(self.path): return
         with open(self.path, 'r') as f:
             data = yaml.safe_load(f)
-        key = 'approved' if approved else 'pending'
-        data['project']['patches'][key].append(patch_file)
-        with open(self.path, 'w') as f:
-            yaml.dump(data, f, sort_keys=False)
-
-    def update_validation(self, tests_status):
-        if not os.path.exists(self.path): return
-        with open(self.path, 'r') as f:
-            data = yaml.safe_load(f)
-        data['project']['validation']['tests'] = tests_status
+        data['project']['approvals'].append(file_path)
         with open(self.path, 'w') as f:
             yaml.dump(data, f, sort_keys=False)
 

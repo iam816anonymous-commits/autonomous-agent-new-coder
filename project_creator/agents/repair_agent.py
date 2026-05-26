@@ -1,31 +1,52 @@
-class CritiqueAgent:
+import json
+
+class AuditAgent:
     def __init__(self, router):
         self.router = router
 
-    def analyze(self, file_path, content, context_files):
-        system_prompt = "You are a critical code reviewer. Identify bugs, security issues, or missing imports. Output 'PASS' if ok, otherwise list issues."
+    def perform_full_audit(self, file_path, content, context_files):
+        audit_types = ["security", "performance", "cost", "dependency", "dead_code"]
+        results = {}
 
-        prompt = f"File: {file_path}\nContent:\n{content}\n\nContext files available for reference."
+        for atype in audit_types:
+            system_prompt = f"You are a specialist in {atype} auditing. Review the following code and list any issues found."
+            prompt = f"File: {file_path}\nContent:\n{content}"
+            results[atype] = self.router.generate(prompt, system_prompt)
 
-        return self.router.generate(prompt, system_prompt)
+        return results
 
 class RepairAgent:
     def __init__(self, router):
         self.router = router
 
-    def repair(self, file_path, content, critique, context_files):
-        system_prompt = "You are a senior developer. Fix the issues identified in the critique. Output ONLY the corrected source code."
+    def propose_patch(self, file_path, old_content, critique, context_files):
+        system_prompt = """
+        You are a senior developer. Propose a structured patch in JSON format.
+        Structure:
+        {
+          "file": "path",
+          "reason": "why",
+          "risk": "low/medium/high",
+          "tests": ["test_name"],
+          "new_content": "full source code"
+        }
+        """
+        prompt = f"File: {file_path}\nOriginal Content:\n{old_content}\nCritique:\n{critique}"
 
-        prompt = f"File: {file_path}\nOriginal Content:\n{content}\nCritique:\n{critique}"
+        response = self.router.generate(prompt, system_prompt)
 
-        repaired = self.router.generate(prompt, system_prompt)
+        try:
+            patch = json.loads(self._extract_json(response))
+            patch['old_content'] = old_content
+            # We will generate diff separately or ask model for it if preferred
+            return patch
+        except Exception as e:
+            print(f"Error parsing patch JSON: {e}")
+            return None
 
-        if repaired.startswith("```"):
-            lines = repaired.splitlines()
-            if lines[0].startswith("```"):
-                lines = lines[1:]
-            if lines and lines[-1].startswith("```"):
-                lines = lines[:-1]
-            repaired = "\n".join(lines).strip()
-
-        return repaired
+    def _extract_json(self, text):
+        if "```json" in text:
+            return text.split("```json")[1].split("```")[0]
+        elif "```" in text:
+            return text.split("```")[1].split("```")[0]
+        return text.strip()

@@ -1,0 +1,7 @@
+google-genai
+groq
+openai
+playwright
+pytest
+ruff
+black

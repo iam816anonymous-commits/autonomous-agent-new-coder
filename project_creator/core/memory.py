@@ -11,7 +11,7 @@ class MemoryLayer:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
 
-            # Patches table
+            # Patches and Impact
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS patch_queue (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -23,41 +23,97 @@ class MemoryLayer:
                     old_content TEXT,
                     new_content TEXT,
                     status TEXT DEFAULT 'PENDING',
+                    latency_before REAL,
+                    latency_after REAL,
+                    tests_before INTEGER,
+                    tests_after INTEGER,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
 
-            # Audit log
+            # User Preferences
             cursor.execute('''
-                CREATE TABLE IF NOT EXISTS audit_log (
+                CREATE TABLE IF NOT EXISTS user_preferences (
+                    key TEXT PRIMARY KEY,
+                    value TEXT
+                )
+            ''')
+
+            # Version Tracking
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS versions (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    file_path TEXT,
-                    audit_type TEXT,
-                    result TEXT,
+                    version_tag TEXT,
+                    accuracy REAL,
+                    latency REAL,
+                    cost REAL,
+                    tests_passed INTEGER,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
 
-            # Benchmarks
+            # Knowledge Graph (Simplified)
             cursor.execute('''
-                CREATE TABLE IF NOT EXISTS benchmarks (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    patch_id INTEGER,
-                    metric TEXT,
-                    value REAL,
-                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                CREATE TABLE IF NOT EXISTS knowledge_graph (
+                    file_path TEXT PRIMARY KEY,
+                    dependencies TEXT, -- JSON list
+                    owner_agent TEXT,
+                    risk_score REAL
                 )
             ''')
 
-            # User preferences (Memory)
+            conn.commit()
+
+    def get_preferences(self):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT key, value FROM user_preferences')
+            return dict(cursor.fetchall())
+
+    def update_preference(self, key, value):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('INSERT OR REPLACE INTO user_preferences (key, value) VALUES (?, ?)', (key, value))
+            conn.commit()
+
+    def update_patch_impact(self, patch_id, impact_data):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
             cursor.execute('''
-                CREATE TABLE IF NOT EXISTS preferences (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    pattern TEXT,
-                    count INTEGER DEFAULT 1,
-                    outcome TEXT -- 'ACCEPTED' or 'REJECTED'
-                )
-            ''')
+                UPDATE patch_queue
+                SET latency_before = ?, latency_after = ?, tests_before = ?, tests_after = ?
+                WHERE id = ?
+            ''', (
+                impact_data.get('latency_before'),
+                impact_data.get('latency_after'),
+                impact_data.get('tests_before'),
+                impact_data.get('tests_after'),
+                patch_id
+            ))
+            conn.commit()
+
+    def add_version(self, version_data):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO versions (version_tag, accuracy, latency, cost, tests_passed)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (
+                version_data['tag'],
+                version_data.get('accuracy'),
+                version_data.get('latency'),
+                version_data.get('cost'),
+                version_data.get('tests_passed')
+            ))
+            conn.commit()
+
+    def update_knowledge_graph(self, file_path, deps, owner, risk):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT OR REPLACE INTO knowledge_graph (file_path, dependencies, owner_agent, risk_score)
+                VALUES (?, ?, ?, ?)
+            ''', (file_path, json.dumps(deps), owner, risk))
             conn.commit()
 
     def add_patch(self, patch_data):
@@ -84,24 +140,9 @@ class MemoryLayer:
             conn.commit()
 
     def log_audit(self, file_path, audit_type, result):
+        # Audit log table was missing in updated _init_db, re-adding it for completeness
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
+            cursor.execute('CREATE TABLE IF NOT EXISTS audit_log (id INTEGER PRIMARY KEY AUTOINCREMENT, file_path TEXT, audit_type TEXT, result TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)')
             cursor.execute('INSERT INTO audit_log (file_path, audit_type, result) VALUES (?, ?, ?)', (file_path, audit_type, result))
-            conn.commit()
-
-    def record_benchmark(self, patch_id, metric, value):
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute('INSERT INTO benchmarks (patch_id, metric, value) VALUES (?, ?, ?)', (patch_id, metric, value))
-            conn.commit()
-
-    def update_preference(self, pattern, outcome):
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute('SELECT id, count FROM preferences WHERE pattern = ? AND outcome = ?', (pattern, outcome))
-            row = cursor.fetchone()
-            if row:
-                cursor.execute('UPDATE preferences SET count = count + 1 WHERE id = ?', (row[0],))
-            else:
-                cursor.execute('INSERT INTO preferences (pattern, outcome) VALUES (?, ?)', (pattern, outcome))
             conn.commit()

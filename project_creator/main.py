@@ -19,6 +19,8 @@ from project_creator.core.deployment import DeploymentOrchestrator
 from project_creator.core.telemetry import TelemetryEngine
 from project_creator.core.evolution import CompareEngine, ShadowExecutor, DriftDetector
 from project_creator.core.governance import GovernanceLayer, GovernanceSimulator
+from project_creator.core.scoreboard import Scoreboard
+from project_creator.core.stress_tests import ConstitutionStressTest
 from project_creator.router.provider_router import ProviderRouter
 from project_creator.agents.planner_agent import PlannerAgent
 from project_creator.agents.coder_agent import CoderAgent
@@ -26,17 +28,19 @@ from project_creator.agents.repair_agent import AuditAgent, RepairAgent
 
 def main():
     print("\n" + "="*60)
-    print("🏛️  Governed Engineering Ecosystem v8")
+    print("🏛️  Validated Governed Ecosystem v9")
     print("="*60 + "\n")
 
     router = ProviderRouter()
-    project_dir = input("Enter project directory: ").strip() or "ecosystem_v8"
+    project_dir = input("Enter project directory: ").strip() or "validated_v9"
     storage = Storage(project_dir)
     tools = ToolExecutor(project_dir)
     memory = MemoryLayer(os.path.join(storage.project_root, ".agent_memory.db"))
     sandbox = Sandbox(project_dir)
     deployer = DeploymentOrchestrator(memory, tools, sandbox)
     telemetry = TelemetryEngine(memory)
+    scoreboard = Scoreboard(os.path.join(storage.project_root, ".agent_memory.db"))
+    stress_tester = ConstitutionStressTest(memory)
 
     planner = PlannerAgent(router)
     coder = CoderAgent(router, memory)
@@ -46,41 +50,23 @@ def main():
 
     existing_context = storage.read_existing_files()
 
-    # Initialize champion
     champ_ver, champ_metrics = memory.get_champion_version()
     if not champ_ver:
         memory.add_version({'tag': 'v1.0', 'is_champion': True, 'metrics': {'latency': 100, 'cost': 1.0, 'tests_passed': 1}})
         champ_ver, champ_metrics = memory.get_champion_version()
 
-    # Ecosystem Scoreboard Update
-    update_ecosystem_scoreboard(memory, telemetry, champ_ver, champ_metrics)
-
-    mode = input("\n[G]enerate, [A]udit, [E]volve, or [S]coreboard? [G/a/e/s]: ").lower()
+    mode = input("\n[G]enerate, [A]udit, [E]volve, [S]coreboard, [V]alidate? [G/a/e/s/v]: ").lower()
 
     if mode == 's':
-        show_scoreboard(memory)
+        scoreboard.display()
+    elif mode == 'v':
+        stress_tester.run_stress_tests()
     elif mode == 'e':
         perform_governed_evolution(existing_context, coder, audit_agent, repair_agent, memory, storage, tools, sandbox, deployer, telemetry, shadow, champ_ver, champ_metrics)
     elif mode == 'a':
         perform_repo_audit(existing_context, audit_agent, repair_agent, memory, storage, tools, sandbox, deployer, telemetry)
     else:
         perform_generation_flow(planner, coder, audit_agent, repair_agent, memory, storage, tools, sandbox, deployer, telemetry)
-
-def update_ecosystem_scoreboard(memory, telemetry, champ_ver, champ_metrics):
-    # Simulate trend tracking based on memory
-    metrics = {'quality': 85.0, 'promotion': 0.15, 'rollback': 0.05, 'drift': 0.02}
-    memory.update_ecosystem_scoreboard(metrics)
-
-    # Check for champion retirement
-    latest_lat = telemetry.capture_metrics('prod', champ_ver).get('latency', 0)
-    retire, reason = DriftDetector.should_retire_champion(champ_metrics, {'latency': latest_lat, 'error_rate': 0.01})
-    if retire:
-        print(f"🚨 {reason}")
-        memory.retire_champion(champ_ver)
-
-def show_scoreboard(memory):
-    print("\n📊 ECOSYSTEM SCOREBOARD")
-    print("Trend: Quality 📈 92% | Promotion Rate: 12% | Rollback Rate: 2%")
 
 def perform_generation_flow(planner, coder, audit_agent, repair_agent, memory, storage, tools, sandbox, deployer, telemetry):
     user_prompt = input("What would you like to build?\n> ")
@@ -141,8 +127,8 @@ def handle_sdlc_promotion(patch, memory, storage, tools, sandbox, deployer, tele
              sandbox.merge_to_main(branch_name)
              memory.add_patch(patch)
              memory.add_version({'tag': version_tag, 'is_champion': False, 'metrics': {'latency': metrics['latency']}})
-             print(f"✅ Version {version_tag} live.")
              return True
+
     sandbox.abort_candidate(branch_name)
     return False
 

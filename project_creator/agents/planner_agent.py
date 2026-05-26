@@ -1,4 +1,4 @@
-from .utils import extract_json
+from project_creator.core.utils import extract_json
 
 class PlannerAgent:
     def __init__(self, router):

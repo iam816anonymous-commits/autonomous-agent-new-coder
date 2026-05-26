@@ -10,10 +10,10 @@ export function activate(context: vscode.ExtensionContext) {
     );
 
     context.subscriptions.push(
-        vscode.commands.registerCommand('MiniJules.Generate', () => provider.startAction('Generate')),
-        vscode.commands.registerCommand('MiniJules.Critique', () => provider.startAction('Critique')),
-        vscode.commands.registerCommand('MiniJules.Repair', () => provider.startAction('Repair')),
-        vscode.commands.registerCommand('MiniJules.Manifest', () => provider.showTab('Manifest'))
+        vscode.commands.registerCommand('MiniJules.Generate', () => provider.triggerAction('Generate')),
+        vscode.commands.registerCommand('MiniJules.Critique', () => provider.triggerAction('Critique')),
+        vscode.commands.registerCommand('MiniJules.Repair', () => provider.triggerAction('Repair')),
+        vscode.commands.registerCommand('MiniJules.Manifest', () => provider.triggerAction('Manifest'))
     );
 
     context.subscriptions.push(
@@ -29,79 +29,78 @@ class JulesViewProvider implements vscode.WebviewViewProvider {
 
     public resolveWebviewView(webviewView: vscode.WebviewView) {
         this._view = webviewView;
-        webviewView.webview.options = { enableScripts: true, localResourceRoots: [this._extensionUri] };
+        webviewView.webview.options = {
+            enableScripts: true,
+            localResourceRoots: [this._extensionUri]
+        };
         webviewView.webview.html = this._getHtml(webviewView.webview);
 
         webviewView.webview.onDidReceiveMessage(async (data) => {
-            switch (data.type) {
-                case 'plan':
-                    vscode.window.showInformationMessage(`Jules: Planning \${data.goal}...`);
-                    break;
-                case 'approve_patch':
-                    // Interaction logic
-                    break;
+            try {
+                switch (data.type) {
+                    case 'request_plan':
+                        const res = await this._callBackend('/plan', { goal: data.goal });
+                        this._view?.webview.postMessage({ type: 'blueprint', value: res });
+                        break;
+                    case 'approve_file':
+                        await this._callBackend('/apply', { path: data.path, content: data.content });
+                        vscode.window.showInformationMessage(`Applied: \${data.path}`);
+                        break;
+                }
+            } catch (e) {
+                vscode.window.showErrorMessage(`Backend Error: \${e}`);
             }
         });
     }
 
-    public startAction(action: string) {
+    public triggerAction(action: string) {
         this._view?.webview.postMessage({ type: 'action', value: action });
     }
 
-    public showTab(tab: string) {
-        this._view?.webview.postMessage({ type: 'switch_tab', value: tab });
+    private async _callBackend(endpoint: string, body: any) {
+        // In a real extension, we would use axios or fetch to localhost:8000
+        console.log('Calling backend:', endpoint, body);
+        return { status: 'mocked' };
     }
 
     private _getHtml(webview: vscode.Webview) {
         return `<!DOCTYPE html>
-        <html lang="en">
+        <html>
         <head>
-            <meta charset="UTF-8">
             <style>
-                body { font-family: var(--vscode-font-family); color: var(--vscode-foreground); padding: 10px; }
-                .tab-header { display: flex; border-bottom: 1px solid var(--vscode-panel-border); margin-bottom: 15px; }
-                .tab-btn { background: none; border: none; color: var(--vscode-tab-inactiveForeground); padding: 5px 10px; cursor: pointer; }
-                .tab-btn.active { color: var(--vscode-tab-activeForeground); border-bottom: 2px solid var(--vscode-button-background); }
-                .card { background: var(--vscode-editor-background); border: 1px solid var(--vscode-widget-border); border-radius: 4px; padding: 10px; margin-bottom: 10px; }
-                input, button { width: 100%; margin-top: 5px; padding: 8px; box-sizing: border-box; }
-                button { background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; cursor: pointer; }
-                button:hover { background: var(--vscode-button-hoverBackground); }
+                body { font-family: sans-serif; padding: 10px; color: #ccc; }
+                .btn { background: #007acc; color: white; border: none; padding: 8px; width: 100%; cursor: pointer; border-radius: 2px; }
+                .input { width: 100%; padding: 8px; margin: 10px 0; background: #333; color: white; border: 1px solid #555; box-sizing: border-box; }
+                .card { border: 1px solid #444; padding: 10px; margin-top: 10px; border-radius: 4px; }
+                .tab-bar { display: flex; border-bottom: 1px solid #444; margin-bottom: 10px; }
+                .tab { padding: 5px 10px; cursor: pointer; font-size: 12px; }
+                .tab.active { border-bottom: 2px solid #007acc; color: white; }
             </style>
         </head>
         <body>
-            <div class="tab-header">
-                <button class="tab-btn active" onclick="show('Blueprint')">Blueprint</button>
-                <button class="tab-btn" onclick="show('Timeline')">Timeline</button>
-                <button class="tab-btn" onclick="show('Manifest')">Manifest</button>
+            <div class="tab-bar">
+                <div class="tab active" onclick="tab('plan')">Plan</div>
+                <div class="tab" onclick="tab('status')">Status</div>
             </div>
-
-            <div id="Blueprint">
-                <div class="card">
-                    <h3>New Project</h3>
-                    <input type="text" id="goal" placeholder="e.g. FastAPI SaaS">
-                    <button onclick="plan()">Generate Plan</button>
-                </div>
+            <div id="plan-view">
+                <h3>Architecture</h3>
+                <input class="input" id="goal" placeholder="What shall we build?">
+                <button class="btn" onclick="sendPlan()">Architect Project</button>
+                <div id="blueprint-list"></div>
             </div>
-
-            <div id="Timeline" style="display:none">
-                <div class="card">No active tasks.</div>
-            </div>
-
-            <div id="Manifest" style="display:none">
-                <pre id="manifest-content">{}</pre>
-            </div>
-
             <script>
                 const vscode = acquireVsCodeApi();
-                function show(id) {
-                    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-                    ['Blueprint', 'Timeline', 'Manifest'].forEach(div => document.getElementById(div).style.display = div === id ? 'block' : 'none');
-                    event.target.classList.add('active');
-                }
-                function plan() {
+                function tab(n) { console.log('tab', n); }
+                function sendPlan() {
                     const goal = document.getElementById('goal').value;
-                    vscode.postMessage({ type: 'plan', goal });
+                    vscode.postMessage({ type: 'request_plan', goal });
                 }
+                window.addEventListener('message', event => {
+                    const msg = event.data;
+                    if(msg.type === 'blueprint') {
+                        document.getElementById('blueprint-list').innerHTML = '<p>Plan received!</p>';
+                    }
+                });
             </script>
         </body>
         </html>`;

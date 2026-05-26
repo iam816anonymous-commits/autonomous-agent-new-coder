@@ -20,11 +20,11 @@ from project_creator.agents.repair_agent import RepairAgent
 
 def main():
     print("\n" + "="*50)
-    print("🤖 Improvised Mini Jules Agent")
+    print("🤖 Production-Hardened Mini Jules Agent")
     print("="*50 + "\n")
 
     router = ProviderRouter()
-    project_dir = input("Project Name: ").strip() or "improv_project"
+    project_dir = input("Project Name: ").strip() or "final_jules_app"
     storage = Storage(project_dir)
     tools = ToolExecutor(project_dir)
     manifest = ProjectManifest(storage.project_root)
@@ -35,37 +35,79 @@ def main():
     critique_agent = CritiqueAgent(router)
     repair_agent = RepairAgent(router)
 
-    # 1. Blueprint Phase
-    user_prompt = input("Build goal: ")
-    blueprint = planner.create_blueprint(user_prompt)
-    if not blueprint: return
+    # Session Resume Logic
+    s_data = session.load_session()
+    if s_data:
+        if input(f"Resume session for '{s_data['blueprint'].get('project_name')}'? [Y/n] ").lower() != 'n':
+            blueprint = s_data['blueprint']
+            generated_files = s_data['generated_files']
+        else: s_data = None
 
-    # 2. Initialization
-    manifest.create(user_prompt, "python-v1", [f['path'] for f in blueprint['files']])
-    generated_files = {}
+    if not s_data:
+        user_prompt = input("Describe your build goal: ")
+        print("\n🏗️  Phase 1: Architecture Planning...")
+        blueprint = planner.create_blueprint(user_prompt)
+        if not blueprint:
+            print("❌ Failure: Could not generate blueprint.")
+            return
 
-    for file_meta in blueprint['files']:
+        print(f"\n📋 Blueprint Received: {blueprint.get('project_name')}")
+        for f in blueprint.get('files', []):
+            print(f"  - {f['path']}: {f['description']}")
+
+        manifest.create(user_prompt, "python-vFinal", [f['path'] for f in blueprint['files']])
+        generated_files = {}
+
+    # Phase 2: Implementation & Validation Loop
+    for file_meta in blueprint.get('files', []):
         path = file_meta['path']
-        print(f"\n📝 Generating: {path}...")
+        if path in generated_files: continue
+
+        print(f"\n📝 Phase 2: Generating {path}...")
         content = coder.generate_file(path, file_meta['description'], blueprint, generated_files)
 
-        # 3. Validation
-        critique = critique_agent.analyze(path, content, blueprint, generated_files)
-        if critique.get('verdict') == "FAIL":
-            print(f"🛠️  Repairing {path}...")
-            patch = repair_agent.propose_patch(path, content, critique['issues'], blueprint, generated_files)
-            if patch: content = patch['new_content']
+        # Iterative SDLC Loop
+        while True:
+            print(f"🔍 Phase 3: Auditing {path}...")
+            critique = critique_agent.analyze(path, content, blueprint, generated_files)
 
-        # 4. Human Gate & Export
-        print(f"\n--- Export Ready: {path} ---")
-        if input(f"Approve writing {path}? [y/N]: ").lower() == 'y':
-            if storage.write_file(path, content, interactive=False):
+            if critique['verdict'] == 'PASS':
+                print(f"✅ Audit Passed ({critique.get('security_score', 'N/A')}/10)")
+                break
+
+            print(f"🛠️  Phase 4: Proposing Repair for {path}...")
+            print(f"Issues: {', '.join(critique['issues'])}")
+            patch = repair_agent.propose_patch(path, content, critique['issues'], blueprint, generated_files)
+            if patch and patch.get('status') == 'pending':
+                print("\n--- Repair Proposed ---")
+                print(f"Reason: {patch.get('reason')}")
+                if input("Apply this patch? [y/N]: ").lower() == 'y':
+                    content = patch['new_content']
+                else: break
+            else: break
+
+        # Phase 5: Human Approval & Persistence
+        print(f"\n--- Final Review for {path} ---")
+        print(content[:600] + ("..." if len(content) > 600 else ""))
+        print("-" * 30)
+
+        choice = input("[C]onfirm Write, [E]dit, [S]kip, [R]egenerate? ").lower()
+        if choice == 'c':
+            if storage.write_file(path, content, interactive=True):
                 generated_files[path] = content
                 manifest.log_approval(path)
                 session.save_session(blueprint, generated_files, [], [p for p in generated_files])
+                if path.endswith(".py"): tools.run_format(path)
+        elif choice == 'e':
+            content = sys.stdin.read()
+            if storage.write_file(path, content, interactive=False):
+                generated_files[path] = content
+                session.save_session(blueprint, generated_files, [], [p for p in generated_files])
+        elif choice == 'r': continue
+        else: print(f"⏭️  Skipped {path}")
 
-    manifest.update_field("status", "exported")
-    print(f"\n✅ Project '{blueprint.get('project_name')}' Exported to {project_dir}")
+    manifest.update_field("status", "ready")
+    print(f"\n🚀 Mission Accomplished: Project '{blueprint.get('project_name')}' generated!")
 
 if __name__ == "__main__":
     main()

@@ -5,36 +5,36 @@ import shlex
 class ToolExecutor:
     def __init__(self, project_root):
         self.project_root = os.path.abspath(project_root)
-        # Final Sandbox Constitution ALLOW-list
+        # Sandbox Hardening: Whitelisted base commands
         self.allowed_bases = {"pytest", "ruff", "black", "python3"}
 
     def execute(self, command):
         try:
             cmd_args = shlex.split(command)
         except ValueError as e:
-            return {"error": f"Parse Error: {e}"}
+            return {"error": f"Invalid syntax: {e}"}
 
         if not cmd_args: return {"error": "Empty command."}
 
         cmd_base = cmd_args[0]
 
-        # 1. Deny Shell Escalation & Recursive Execution
+        # Hard Security Boundary
         if cmd_base not in self.allowed_bases:
             return {"error": f"Sandbox Rejection: '{cmd_base}' is restricted."}
 
-        # 2. Deny Credential/System Mutation Patterns
-        forbidden_patterns = {
+        # Block Escalation, credentials, and dangerous system patterns
+        forbidden = {
             "sudo", "chmod", "chown", "env", ".env", "passwd", "shadow",
             "rm -rf /", "git", "pip", "sh", "bash", "curl", "wget", "eval", "exec"
         }
 
-        cmd_str = " ".join(cmd_args).lower()
-        for p in forbidden_patterns:
-            if p in cmd_str:
-                return {"error": f"Constitution Violation: '{p}' is forbidden."}
+        full_cmd_str = " ".join(cmd_args).lower()
+        for pattern in forbidden:
+            if pattern in full_cmd_str:
+                return {"error": f"Constitution Violation: '{pattern}' is forbidden."}
 
         try:
-            # 3. Block System Mutation (Immutable shell=False)
+            # Immutable non-shell execution
             result = subprocess.run(
                 cmd_args,
                 cwd=self.project_root,

@@ -5,14 +5,15 @@ class ProjectManifest:
     def __init__(self, project_root):
         self.path = os.path.join(project_root, "project.yaml")
 
-    def create(self, goal, stack, files, deps=None, tests=None):
+    def create(self, name, stack, files):
         data = {
-            "goal": goal,
-            "stack": stack,
-            "files": files,
-            "deps": deps or [],
-            "tests": tests or [],
-            "status": "in_progress"
+            "project": {
+                "name": name,
+                "stack": stack,
+                "status": "in_progress",
+                "files": files,
+                "repairs": "none"
+            }
         }
         with open(self.path, 'w') as f:
             yaml.dump(data, f, sort_keys=False)
@@ -21,7 +22,15 @@ class ProjectManifest:
         if not os.path.exists(self.path): return
         with open(self.path, 'r') as f:
             data = yaml.safe_load(f)
-        data['status'] = status
+        data['project']['status'] = status
+        with open(self.path, 'w') as f:
+            yaml.dump(data, f, sort_keys=False)
+
+    def update_repairs(self, repair_status):
+        if not os.path.exists(self.path): return
+        with open(self.path, 'r') as f:
+            data = yaml.safe_load(f)
+        data['project']['repairs'] = repair_status
         with open(self.path, 'w') as f:
             yaml.dump(data, f, sort_keys=False)
 

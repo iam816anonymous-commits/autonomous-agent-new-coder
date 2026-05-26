@@ -5,11 +5,10 @@ import shlex
 class ToolExecutor:
     def __init__(self, project_root):
         self.project_root = os.path.abspath(project_root)
-        # List of base commands allowed
-        self.allowed_bases = {"pytest", "ruff", "black", "alembic", "git", "pip", "python", "python3"}
+        # Strict whitelist
+        self.allowed_bases = {"pytest", "ruff", "black", "python3"}
 
     def execute(self, command):
-        # Use shlex to safely split the command string
         try:
             cmd_args = shlex.split(command)
         except ValueError as e:
@@ -19,17 +18,26 @@ class ToolExecutor:
              return {"error": "Empty command."}
 
         cmd_base = cmd_args[0]
+
+        # Security hardening: Deny shell escalation, credential edits, system edits
+        # We block anything starting with 'git', 'pip', or contains 'sudo', 'env', etc.
         if cmd_base not in self.allowed_bases:
-             return {"error": f"Error: Command '{cmd_base}' is not in the allowed list."}
+             return {"error": f"Permission Denied: Command '{cmd_base}' is restricted."}
+
+        # Check for forbidden keywords in arguments
+        forbidden = {"sudo", "chmod", "chown", "env", ".env", "passwd", "shadow"}
+        for arg in cmd_args:
+            if any(f in arg.lower() for f in forbidden):
+                return {"error": f"Security Violation: Forbidden keyword detected in arguments."}
 
         try:
-            # Execute command without shell=True to prevent injection
+            # Execute without shell=True to prevent injection
             result = subprocess.run(
                 cmd_args,
                 cwd=self.project_root,
                 capture_output=True,
                 text=True,
-                timeout=60
+                timeout=30
             )
             return {
                 "stdout": result.stdout,

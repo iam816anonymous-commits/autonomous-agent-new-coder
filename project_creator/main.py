@@ -20,11 +20,11 @@ from project_creator.agents.repair_agent import RepairAgent
 
 def main():
     print("\n" + "="*50)
-    print("🤖 Mini Jules Project Agent")
+    print("🤖 Validated Mini Jules Project Agent")
     print("="*50 + "\n")
 
     router = ProviderRouter()
-    project_dir = input("Project Name: ").strip() or "my_jules_app"
+    project_dir = input("Project Name: ").strip() or "validated_jules_app"
     storage = Storage(project_dir)
     tools = ToolExecutor(project_dir)
     manifest = ProjectManifest(storage.project_root)
@@ -45,13 +45,10 @@ def main():
         else: s_data = None
 
     if not s_data:
-        user_prompt = input("What would you like to build?\n> ")
-        print("\n🏗️  Architecting...")
+        user_prompt = input("Build goal: ")
         blueprint = planner.create_blueprint(user_prompt)
-        if not blueprint:
-            print("❌ Failed blueprint.")
-            return
-        manifest.create(user_prompt, "python", [f['path'] for f in blueprint['files']])
+        if not blueprint: return
+        manifest.create(blueprint.get('project_name', 'jules_app'), "python", [f['path'] for f in blueprint['files']])
         generated_files, repairs, approvals = {}, [], []
 
     for file_meta in blueprint['files']:
@@ -59,25 +56,37 @@ def main():
         if path in generated_files: continue
 
         print(f"\n📝 Generating: {path}...")
+
+        # Patch Lifecycle: Generate -> Critique -> Patch -> Approve -> Apply
         content = coder.generate_file(path, file_meta['description'], blueprint, generated_files)
 
         while True:
-            print(f"✨ Validating {path}...")
-            # Simulation of linting feedback for the agents
-            if path.endswith(".py"): tools.run_format(path)
-
+            print(f"🔍 Critiquing {path}...")
             critique = critique_agent.analyze(path, content, blueprint, generated_files)
+
             if "PASS" in critique.upper():
                 print(f"✅ {path} passed validation.")
                 break
 
-            print(f"🛠️  Repairing {path}...")
+            print(f"🛠️  Proposing Patch for {path}...")
             patch = repair_agent.propose_patch(path, content, critique, blueprint, generated_files)
-            if patch and patch.get('action') == 'repair':
-                content = patch['new_content']
-                repairs.append(patch)
-            else: break
 
+            if patch and patch.get('action') == 'repair':
+                # Patch Approval Gate
+                print(f"\n--- Proposed Patch for {path} ---")
+                print(f"Reason: {patch.get('reason')}")
+                print("-" * 30)
+                if input("Approve patch? [Y/n]: ").lower() == 'y':
+                    content = patch['new_content']
+                    repairs.append(patch)
+                    manifest.update_repairs("applied")
+                else:
+                    print("Patch rejected.")
+                    break
+            else:
+                break
+
+        # Final File Approval Gate
         print(f"\n--- Preview: {path} ---")
         print(content[:500] + ("..." if len(content) > 500 else ""))
         print("-" * 30)
@@ -87,9 +96,9 @@ def main():
             if storage.write_file(path, content):
                 generated_files[path] = content
                 approvals.append(path)
+                if path.endswith(".py"): tools.run_format(path)
                 session.save_session(blueprint, generated_files, repairs, approvals)
         elif choice == 'e':
-            print("Edit: Paste content (Ctrl-D):")
             content = sys.stdin.read()
             if storage.write_file(path, content):
                 generated_files[path] = content
@@ -97,8 +106,8 @@ def main():
         elif choice == 'r': continue
         else: print(f"Skipped {path}")
 
-    manifest.update_status("completed")
-    print(f"\n🚀 Project '{blueprint.get('project_name')}' Assembled!")
+    manifest.update_status("generated")
+    print(f"\n🚀 Validated Project '{blueprint.get('project_name')}' Ready!")
 
 if __name__ == "__main__":
     main()

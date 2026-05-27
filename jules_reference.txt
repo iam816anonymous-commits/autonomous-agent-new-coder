@@ -1,0 +1,55 @@
+MINI JULES: COMMAND & USAGE REFERENCE
+=======================================
+
+CORE SYSTEM
+-----------
+Mini Jules is an autonomous engineering agent that architects, generates,
+and repairs full-stack projects. It operates under a strict Sandbox
+Constitution to ensure system safety during generation.
+
+VS CODE COMMANDS
+----------------
+1. MiniJules.Generate
+   - Purpose: Starts the Project Creator. Architects the blueprint and begins file generation.
+   - Usage: Command Palette or Sidebar "Plan" tab.
+
+2. MiniJules.Critique
+   - Purpose: Performs a senior-level logic and security audit on the active file.
+   - Usage: Command Palette, CodeLens "Critique File", or Sidebar "Queue" tab.
+
+3. MiniJules.Repair
+   - Purpose: Automatically proposes a patch for files that failed critique or linting.
+   - Usage: Command Palette or CodeLens "Repair File".
+
+4. MiniJules.ApplyPatch
+   - Purpose: Promotes a reviewed patch from the queue to the final workspace.
+   - Usage: Sidebar "Patches" tab after a successful repair.
+
+5. MiniJules.Manifest
+   - Purpose: Displays the live project.yaml status and architecture.
+   - Usage: Sidebar "Meta" tab.
+
+BACKEND API (localhost:8000)
+----------------------------
+- POST /start: Initialize project and generate blueprint.
+- POST /process_file: Run generate-critique-repair loop for a specific path.
+- POST /approve: Permanently write a validated file to disk.
+- GET /manifest: Fetch current project state.
+
+SANDBOX CONSTITUTION (SECURITY)
+-------------------------------
+Mini Jules is strictly restricted to:
+- ALLOWED: pytest, ruff, black, python3, file read/write.
+- BLOCKED: credential mutation (.env), system edits (sudo, chmod),
+           shell escalation (sh, bash), recursive execution.
+
+LIFECYCLE
+---------
+Plan -> Generate -> Sandbox Dry-run -> Critique -> Repair -> Approve -> Apply.
+
+REFERENCE DATA
+--------------
+Primary Model: Gemini 2.5 Flash
+Secondary: Groq, OpenRouter
+Persistence: project.yaml & .agent_session.json
+=======================================

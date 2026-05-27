@@ -1,26 +1,39 @@
-# 🟦 Mini Jules VS Code Extension
+# 🤖 Mini Jules: Production-Hardened Autonomous Engineering Agent
 
-The official VS Code interface for the Mini Jules autonomous engineering agent.
+Mini Jules is a high-performance autonomous engineering agent designed to architect, generate, and repair full-stack projects using elite AI models (Gemini 2.5 Flash, Groq, OpenRouter). It features a security-first SDLC loop and integrates directly into VS Code.
 
-## ✨ Features
+## 🚀 Key Features
 
-### Sidebar Webview
-- **Blueprint Tab**: Start new projects and refine architectures.
-- **Timeline Tab**: Track the progress of generation and repair tasks.
-- **Manifest Tab**: View the live `project.yaml` source of truth.
+- **Autonomous Multi-File Generation**: From single prompt to logically grouped modules.
+- **Strict SDLC Loop**: Immutable lifecycle (Plan → Generate → Sandbox Dry-run → Critique → Repair → Approval → Apply).
+- **Security Constitution**: Hardened prompts that proactively block common vulnerabilities (SQLi, XSS, hardcoded secrets).
+- **Sandbox Dry-run**: Automatic linting and validation of generated code in isolated temporary directories.
+- **Production Audit Logging**: Every command executed by the agent is recorded in `agent_audit.log`.
+- **VS Code Native**: Sidebar GUI, CodeLens inline actions, and native diff-based patch reviews.
+- **Multi-Provider Routing**: Resilient fallback chain with exponential backoff retries.
 
-### Inline Actions (CodeLens)
-- **Generate Here**: Trigger context-aware code generation directly in the editor.
-- **Repair File**: Automatically fix diagnostics or audit issues in the active file.
-- **Critique File**: Run a senior-level audit on your code.
+## 📦 Project Structure
 
-### Native Diff Review
-Mini Jules leverages VS Code's native `vscode.diff` command for all patch approvals, ensuring you always see exactly what is about to be applied.
+- `project_creator/`: Python backend (Agents, Orchestrator, FastAPI bridge).
+- `mini-jules-vscode/`: TypeScript VS Code extension (GUI, Workspace integration).
 
-## 🛠️ Development
+## 🛠️ Setup
 
-1. `npm install`
-2. `npm run watch` (for auto-compilation)
-3. Press `F5` to open the Extension Development Host.
+### Backend
+```bash
+pip install -r requirements.txt
+python -m project_creator.server
+```
 
-Requires the [Mini Jules Backend](../project_creator) to be running on `localhost:8000`.
+### VS Code Extension
+```bash
+cd mini-jules-vscode
+npm install
+npm run compile
+```
+
+## 🛡️ Sandbox Constitution
+Mini Jules is restricted to a whitelisted set of commands (`pytest`, `ruff`, `black`, `python3`). It is strictly blocked from shell escalation, system mutations, or credential edits.
+
+---
+*Mini Jules: Building secure software autonomously.*

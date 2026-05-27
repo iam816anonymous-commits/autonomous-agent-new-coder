@@ -35,12 +35,19 @@ class SelfPlayEngine:
 
         # 4. Benchmark & Quality Filter
         if audit.get('verdict') == "PASS":
-            print("✅ Self-Play: Task Solved Successfully.")
-            self._store_learning(task, content, repair_chain)
+            print("✅ Self-Play: Task Solved Successfully. Reflecting...")
+            heuristic = self._reflect(task, content)
+            self._store_learning(task, content, repair_chain, heuristic)
         else:
             print("❌ Self-Play: Failed to solve task. Discarding.")
 
-    def _store_learning(self, task, solution, repair_chain):
+    def _reflect(self, task, solution):
+        prompt = f"Topic: {task['topic']}\nSolution:\n{solution}\nSummarize one core coding heuristic or 'best practice' derived from this solution in one sentence."
+        try:
+            return self.router.generate(prompt, "You are a senior mentor.")
+        except: return None
+
+    def _store_learning(self, task, solution, repair_chain, heuristic=None):
         # Store patterns and successful solve->repair chains
         meta = {
             "task_id": task['id'],
@@ -49,5 +56,7 @@ class SelfPlayEngine:
             "repair_chain": repair_chain
         }
         self.memory.add_snippet("self_play", solution, "APPROVED")
-        # In a real impl, we'd add specific tables for night learning
-        print(f"💾 Stored learning for task {task['id']}")
+        if heuristic:
+            self.memory.add_heuristic(task['topic'], heuristic)
+
+        print(f"💾 Stored learning and heuristic for task {task['id']}")

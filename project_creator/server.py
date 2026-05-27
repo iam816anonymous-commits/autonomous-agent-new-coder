@@ -1,6 +1,7 @@
 import os
 import sys
 from fastapi import FastAPI, HTTPException, Body
+from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Dict, Any
 import re
 
@@ -23,6 +24,14 @@ from project_creator.agents.repair_agent import RepairAgent
 from project_creator.learning.collector import collector
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 class GlobalState:
     def __init__(self):
@@ -78,6 +87,54 @@ async def get_manifest():
 async def receive_event(event: Dict[str, Any]):
     collector.collect(event.get("type", "UNKNOWN"), event.get("data", {}))
     return {"status": "ok"}
+
+@app.get("/learning/stats")
+async def get_learning_stats():
+    from project_creator.learning import DB_PATH
+    import sqlite3
+    try:
+        if not os.path.exists(DB_PATH):
+            return {"patterns": 0, "snippets": 0, "failures": 0, "commits": 0, "memory_growth": "0 KB"}
+
+        with sqlite3.connect(DB_PATH) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM patterns")
+            patterns = cursor.fetchone()[0]
+            cursor.execute("SELECT COUNT(*) FROM snippets")
+            snippets = cursor.fetchone()[0]
+            cursor.execute("SELECT COUNT(*) FROM failures")
+            failures = cursor.fetchone()[0]
+            cursor.execute("SELECT COUNT(*) FROM git_commits")
+            commits = cursor.fetchone()[0]
+
+            size = os.path.getsize(DB_PATH) / 1024
+            return {
+                "patterns": patterns,
+                "snippets": snippets,
+                "failures": failures,
+                "commits": commits,
+                "memory_growth": f"{size:.1f} KB"
+            }
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/learning/context")
+async def get_active_context(path: str):
+    from project_creator.memory.retriever import Retriever
+    from project_creator.learning import DB_PATH
+    try:
+        retriever = Retriever(DB_PATH)
+        semantic = retriever.vector_store.search(f"File: {path}", top_k=3)
+        patterns = {
+            "imports": retriever.memory.get_top_patterns('import', limit=3),
+            "idioms": retriever.memory.get_top_patterns('idiom', limit=3)
+        }
+        return {
+            "semantic": semantic,
+            "patterns": patterns
+        }
+    except Exception as e:
+        return {"error": str(e)}
 
 if __name__ == "__main__":
     import uvicorn

@@ -73,6 +73,16 @@ class CodingMemory:
             cursor.execute('CREATE TABLE IF NOT EXISTS snippets (id INTEGER PRIMARY KEY AUTOINCREMENT, file_path TEXT, content TEXT, tags TEXT, status TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)')
             cursor.execute('CREATE TABLE IF NOT EXISTS user_style (key TEXT PRIMARY KEY, value TEXT)')
 
+            # Heuristics learned from reflection
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS heuristics (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    topic TEXT,
+                    heuristic TEXT,
+                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+
             conn.commit()
 
     def log_night_activity(self, tasks, patterns, quota, growth):
@@ -135,3 +145,9 @@ class CodingMemory:
             cursor = conn.cursor()
             cursor.execute('SELECT content FROM patterns WHERE pattern_type = ? ORDER BY frequency DESC LIMIT ?', (p_type, limit))
             return [r[0] for r in cursor.fetchall()]
+
+    def add_heuristic(self, topic, text):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('INSERT INTO heuristics (topic, heuristic) VALUES (?, ?)', (topic, text))
+            conn.commit()

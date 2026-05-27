@@ -2,25 +2,38 @@ import faiss
 import numpy as np
 import os
 import json
-from sentence_transformers import SentenceTransformer
+try:
+    from sentence_transformers import SentenceTransformer
+    HAS_SEMANTIC = True
+except ImportError:
+    HAS_SEMANTIC = False
 
 class VectorStore:
     def __init__(self, index_path):
         self.index_path = index_path
-        self.model = SentenceTransformer('all-MiniLM-L6-v2')
+        self.model = None
         self.dimension = 384
-        self.index = faiss.IndexFlatL2(self.dimension)
+        self.index = None
         self.metadata = []
-        self._load()
+
+        if HAS_SEMANTIC:
+            try:
+                self.model = SentenceTransformer('all-MiniLM-L6-v2')
+                self.index = faiss.IndexFlatL2(self.dimension)
+                self._load()
+            except:
+                print("⚠️  VectorStore: Failed to initialize FAISS index.")
 
     def add(self, text, meta):
+        if not self.model or self.index is None: return
         embedding = self.model.encode([text])
         self.index.add(np.array(embedding).astype('float32'))
         self.metadata.append(meta)
         self._save()
 
     def search(self, query, top_k=5):
-        if self.index.ntotal == 0: return []
+        if not self.model or self.index is None or self.index.ntotal == 0:
+            return []
         embedding = self.model.encode([query])
         distances, indices = self.index.search(np.array(embedding).astype('float32'), top_k)
 

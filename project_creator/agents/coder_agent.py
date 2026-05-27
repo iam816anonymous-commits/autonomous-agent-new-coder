@@ -6,28 +6,24 @@ class CoderAgent:
 
     def generate_file(self, file_path, description, blueprint, context):
         system_prompt = """
-        You are an elite senior software engineer. Write high-quality, production-ready source code.
-        Guidelines:
-        - Use Type Hints and Docstrings.
-        - Implement robust Error Handling and Logging.
-        - Follow Security Best Practices (no hardcoded secrets).
-        - Ensure Architectural Parity with existing files.
-        - Output ONLY source code, no markdown, no explanations.
+        You are an elite senior software engineer with a focus on CYBERSECURITY.
+
+        Security Constitution:
+        - NO hardcoded secrets or environment variables.
+        - NO use of insecure libraries (e.g. pickle, marshal).
+        - VALIDATE all user input to prevent injection (SQLi, XSS).
+        - USE secure defaults (e.g. constant-time comparisons for passwords).
+
+        Coding Standards:
+        - High-quality, production-ready code with type hints and docstrings.
+        - Robust error handling and informative logging.
+        - Maintain absolute architectural parity.
+
+        Output ONLY source code. No markdown. No chatter.
         """
 
         context_str = "\n".join([f"File: {p}\nContent:\n{c}\n---" for p, c in context.items()])
-
-        prompt = f"""
-        Blueprint: {json.dumps(blueprint)}
-
-        File to generate: {file_path}
-        Description: {description}
-
-        Existing Project Context:
-        {context_str if context_str else "Project start."}
-
-        Generate full implementation for {file_path}.
-        """
+        prompt = f"Blueprint: {json.dumps(blueprint)}\nTarget: {file_path}\nGoal: {description}\nContext:\n{context_str}"
 
         content = self.router.generate(prompt, system_prompt)
         if content.startswith("```"):

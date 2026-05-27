@@ -1,5 +1,7 @@
 import os
 import json
+import shutil
+import tempfile
 from typing import Dict, Any, List
 
 class Orchestrator:
@@ -18,48 +20,57 @@ class Orchestrator:
         self.generated_files = {}
 
     def plan(self, goal: str):
-        print(f"🏗️  Architecting Goal: {goal}")
+        print(f"🏗️  Architecting: {goal}")
         self.blueprint = self.planner.create_blueprint(goal)
         if self.blueprint:
-             self.manifest.create(goal, "python-hardened", [f['path'] for f in self.blueprint['files']])
+             self.manifest.create(goal, "python-sandbox", [f['path'] for f in self.blueprint['files']])
              self.session.save_session(self.blueprint, {}, [], [])
         return self.blueprint
 
     def generate_and_validate(self, file_meta: Dict[str, str]):
         path = file_meta['path']
-        print(f"📝 Processing: {path}")
+        print(f"📝 Generating: {path}")
 
-        # 1. Generate
         content = self.coder.generate_file(path, file_meta['description'], self.blueprint, self.generated_files)
 
-        # 2. Iterative SDLC with real tool feedback
+        # Sandbox Dry-run Loop
         for attempt in range(3):
-            # 3. Virtual Audit (LLM)
+            print(f"🧪 [SANDBOX] Validating {path} (Attempt {attempt+1})")
+
+            # 1. Virtual Critique
             audit = self.critique.analyze(path, content, self.blueprint, self.generated_files)
 
-            # 4. Physical Audit (Tools - simulated by writing to temp or sandbox)
-            tool_errors = []
-            if path.endswith(".py"):
-                # We simulate tool run by checking syntax at least
-                try:
-                    compile(content, path, 'exec')
-                except Exception as e:
-                    tool_errors.append(f"Syntax Error: {e}")
+            # 2. Physical Validation (Syntax & Lint)
+            sandbox_root = tempfile.mkdtemp(prefix="jules_sandbox_")
+            try:
+                sandbox_path = os.path.join(sandbox_root, path)
+                os.makedirs(os.path.dirname(sandbox_path), exist_ok=True)
+                with open(sandbox_path, "w") as f: f.write(content)
 
-            if audit.get('verdict') == "PASS" and not tool_errors:
-                return {"path": path, "content": content, "status": "validated", "audit": audit}
+                # Use ToolExecutor on sandbox
+                orig_root = self.tools.project_root
+                self.tools.project_root = sandbox_root
+                lint_res = self.tools.run_lint(path)
+                self.tools.project_root = orig_root
 
-            # 5. Combined Repair
-            combined_issues = audit.get('issues', []) + tool_errors
-            print(f"🛠️  Repair attempt {attempt+1} for {path}. Issues: {combined_issues}")
+                physical_issues = []
+                if lint_res.get('returncode') != 0 and lint_res.get('stdout'):
+                    physical_issues.append(f"Lint Fail: {lint_res['stdout']}")
 
-            patch = self.repair.propose_patch(path, content, combined_issues, self.blueprint, self.generated_files)
-            if patch and patch.get('new_content'):
-                content = patch['new_content']
-            else:
-                break
+                if audit.get('verdict') == "PASS" and not physical_issues:
+                    return {"path": path, "content": content, "status": "validated"}
 
-        return {"path": path, "content": content, "status": "failed_validation", "issues": combined_issues}
+                # 3. Repair with combined virtual/physical feedback
+                combined = audit.get('issues', []) + physical_issues
+                print(f"🛠️  Repairing {path} for: {combined}")
+                patch = self.repair.propose_patch(path, content, combined, self.blueprint, self.generated_files)
+                if patch and patch.get('new_content'):
+                    content = patch['new_content']
+                else: break
+            finally:
+                shutil.rmtree(sandbox_root)
+
+        return {"path": path, "content": content, "status": "manual_review_needed"}
 
     def apply(self, path: str, content: str):
         if self.storage.write_file(path, content, interactive=False):

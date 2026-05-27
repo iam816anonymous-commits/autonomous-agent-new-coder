@@ -1,8 +1,11 @@
 import json
+from project_creator.memory.retriever import Retriever
+from project_creator.learning import DB_PATH
 
 class CoderAgent:
     def __init__(self, router):
         self.router = router
+        self.retriever = Retriever(DB_PATH)
 
     def generate_file(self, file_path, description, blueprint, context):
         system_prompt = """
@@ -24,6 +27,9 @@ class CoderAgent:
 
         context_str = "\n".join([f"File: {p}\nContent:\n{c}\n---" for p, c in context.items()])
         prompt = f"Blueprint: {json.dumps(blueprint)}\nTarget: {file_path}\nGoal: {description}\nContext:\n{context_str}"
+
+        # Augment with learned style and path-aware context
+        prompt = self.retriever.augment_prompt(prompt, task_type="coding", path=file_path)
 
         content = self.router.generate(prompt, system_prompt)
         if content.startswith("```"):

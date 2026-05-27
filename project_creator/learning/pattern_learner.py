@@ -55,3 +55,34 @@ class PatternLearner:
             self.memory.learn_pattern('naming', 'snake_case')
         elif re.search(r'def [a-z][A-Z]', content):
             self.memory.learn_pattern('naming', 'camelCase')
+
+        # 4. Project Idioms (AST-based)
+        try:
+            tree = ast.parse(content)
+            for node in ast.walk(tree):
+                # Detect Decorators (e.g., @app.get, @pytest.fixture)
+                if isinstance(node, (ast.FunctionDef, ast.ClassDef)):
+                    for dec in node.decorator_list:
+                        if isinstance(dec, ast.Call):
+                            func = dec.func
+                        else:
+                            func = dec
+
+                        # Flatten attribute access (e.g. app.get)
+                        parts = []
+                        while isinstance(func, ast.Attribute):
+                            parts.append(func.attr)
+                            func = func.value
+                        if isinstance(func, ast.Name):
+                            parts.append(func.id)
+
+                        if parts:
+                            idiom = ".".join(reversed(parts))
+                            self.memory.learn_pattern('idiom', f"decorator:{idiom}")
+
+                # Detect Base Classes
+                if isinstance(node, ast.ClassDef):
+                    for base in node.bases:
+                        if isinstance(base, ast.Name):
+                            self.memory.learn_pattern('idiom', f"base_class:{base.id}")
+        except: pass

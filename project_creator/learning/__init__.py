@@ -6,6 +6,7 @@ from .pattern_learner import PatternLearner
 from .repo_learner import RepoLearner
 from .commit_learner import CommitLearner
 from .failure_learner import FailureLearner
+from .correction_learner import CorrectionLearner
 
 # Default DB Path
 DB_PATH = os.path.join(os.path.expanduser("~"), ".jules_memory.db")
@@ -14,6 +15,7 @@ DB_PATH = os.path.join(os.path.expanduser("~"), ".jules_memory.db")
 memory = CodingMemory(DB_PATH)
 pattern_learner = PatternLearner(DB_PATH)
 failure_learner = FailureLearner(DB_PATH)
+correction_learner = CorrectionLearner(DB_PATH)
 
 def initialize_reality_learning(workspace_root: str):
     """

@@ -71,8 +71,15 @@ class Orchestrator:
 
                 # 3. Repair with combined virtual/physical feedback
                 combined = audit.get('issues', []) + physical_issues
+
+                # Enhance repair with semantic historical context
+                from project_creator.memory.retriever import Retriever
+                from project_creator.learning import DB_PATH
+                retriever = Retriever(DB_PATH)
+                semantic_history = retriever.augment_prompt(f"Fix issues in {path}: {combined}", task_type="repair", path=path)
+
                 print(f"🛠️  Repairing {path} for: {combined}")
-                patch = self.repair.propose_patch(path, content, combined, self.blueprint, self.generated_files)
+                patch = self.repair.propose_patch(path, content, combined, self.blueprint, self.generated_files, extra_context=semantic_history)
                 if patch and patch.get('new_content'):
                     content = patch['new_content']
                     # Learning Event

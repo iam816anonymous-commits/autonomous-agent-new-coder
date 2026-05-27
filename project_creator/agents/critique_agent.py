@@ -1,4 +1,4 @@
-import json
+from project_creator.core.utils import extract_json
 
 class CritiqueAgent:
     def __init__(self, router):
@@ -14,15 +14,10 @@ class CritiqueAgent:
         - Architectural mismatch.
         Output JSON: {"verdict": "PASS" | "FAIL", "issues": ["..."], "security_score": 0-10}
         """
-        prompt = f"File: {file_path}\nContent:\n{content}\nBlueprint: {json.dumps(blueprint)}"
+        prompt = f"File: {file_path}\nContent:\n{content}\nBlueprint: {blueprint}"
 
         response = self.router.generate(prompt, system_prompt)
-        # Robust extraction
-        try:
-            if "```json" in response:
-                response = response.split("```json")[1].split("```")[0]
-            elif "```" in response:
-                response = response.split("```")[1].split("```")[0]
-            return json.loads(response.strip())
-        except:
-            return {"verdict": "FAIL", "issues": ["Critique agent failed to parse response."], "security_score": 0}
+        result = extract_json(response)
+        if result:
+            return result
+        return {"verdict": "FAIL", "issues": ["Failed to parse critique response."], "security_score": 0}

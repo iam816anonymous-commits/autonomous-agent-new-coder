@@ -7,27 +7,33 @@ class ProjectManifest:
         self.path = os.path.join(project_root, "project.yaml")
 
     def create(self, goal, stack, files):
-        # Infer modules from paths (e.g. backend/main.py -> backend)
-        modules = {}
-        for f in files:
-            parts = f.split('/')
-            m = parts[0] if len(parts) > 1 else "root"
-            if m not in modules: modules[m] = []
-            modules[m].append(f)
-
         data = {
             "project": {
                 "id": f"p_{int(time.time())}",
                 "goal": goal,
                 "stack": stack,
                 "status": "active",
-                "modules": modules,
-                "files": files,
+                "files": {f: {"status": "pending", "critique_history": []} for f in files},
                 "approvals": [],
                 "validation": {"tests": "pending"}
             }
         }
         os.makedirs(os.path.dirname(self.path), exist_ok=True)
+        with open(self.path, 'w') as f:
+            yaml.dump(data, f, sort_keys=False)
+
+    def log_critique(self, path, critique):
+        if not os.path.exists(self.path): return
+        with open(self.path, 'r') as f:
+            data = yaml.safe_load(f)
+
+        if path in data['project']['files']:
+            data['project']['files'][path]['critique_history'].append({
+                "timestamp": time.time(),
+                "verdict": critique.get('verdict'),
+                "issues": critique.get('issues', [])
+            })
+
         with open(self.path, 'w') as f:
             yaml.dump(data, f, sort_keys=False)
 
@@ -37,14 +43,9 @@ class ProjectManifest:
             data = yaml.safe_load(f)
         if path not in data['project']['approvals']:
             data['project']['approvals'].append(path)
-        with open(self.path, 'w') as f:
-            yaml.dump(data, f, sort_keys=False)
+        if path in data['project']['files']:
+            data['project']['files'][path]['status'] = 'applied'
 
-    def update_field(self, key, value):
-        if not os.path.exists(self.path): return
-        with open(self.path, 'r') as f:
-            data = yaml.safe_load(f)
-        data['project'][key] = value
         with open(self.path, 'w') as f:
             yaml.dump(data, f, sort_keys=False)
 

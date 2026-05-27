@@ -6,15 +6,6 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.window.registerWebviewViewProvider(JulesViewProvider.viewType, provider)
     );
-
-    vscode.commands.registerCommand('MiniJules.ClearMemory', () => {
-        vscode.window.showWarningMessage('Are you sure you want to delete all learned patterns?', 'Yes', 'No')
-            .then(selection => {
-                if (selection === 'Yes') {
-                    // Call backend /clear_memory
-                }
-            });
-    });
 }
 
 class JulesViewProvider implements vscode.WebviewViewProvider {
@@ -33,27 +24,20 @@ class JulesViewProvider implements vscode.WebviewViewProvider {
         return `<html>
         <head>
             <style>
-                body { font-family: sans-serif; padding: 10px; color: var(--vscode-foreground); }
-                .tab { display: inline-block; padding: 5px; cursor: pointer; border-bottom: 2px solid transparent; }
-                .tab.active { border-bottom: 2px solid var(--vscode-button-background); }
-                .item { border: 1px solid #444; padding: 5px; margin-top: 5px; border-radius: 2px; }
-                .forget { color: #f44; cursor: pointer; float: right; font-size: 10px; }
+                body { font-family: sans-serif; padding: 10px; color: var(--vscode-foreground); font-size: 12px; }
+                .night-tag { background: #1e1e1e; border: 1px solid #333; padding: 10px; border-radius: 4px; border-left: 4px solid #cc99cd; }
+                .stat { margin-top: 5px; opacity: 0.8; }
+                .value { float: right; color: var(--vscode-button-background); font-weight: bold; }
             </style>
         </head>
         <body>
-            <div class="tab active">Brain</div>
-            <div class="tab">Patterns</div>
-
-            <div id="Brain">
-                <h4>Top Imports</h4>
-                <div class="item">fastapi <span class="forget">Forget</span></div>
-                <div class="item">pydantic <span class="forget">Forget</span></div>
-
-                <h4>Coding Style</h4>
-                <div class="item">snake_case</div>
+            <div class="night-tag">
+                <h3>🌙 Night Learning</h3>
+                <div class="stat">Tasks Completed: <span class="value">12</span></div>
+                <div class="stat">Patterns Learned: <span class="value">42</span></div>
+                <div class="stat">Quota Used: <span class="value">340</span></div>
+                <div class="stat">Memory Growth: <span class="value">1.2 MB</span></div>
             </div>
-
-            <button style="margin-top:20px; width:100%">Export Training Data</button>
         </body></html>`;
     }
 }

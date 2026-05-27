@@ -1,10 +1,9 @@
 import os
 import sys
 from fastapi import FastAPI, HTTPException, Body
-from pydantic import BaseModel
-from typing import List, Optional, Dict, Any
+from typing import List, Dict, Any
 
-# Ensure project_root is in sys.path
+# Project setup
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_dir)
 if project_root not in sys.path:
@@ -14,6 +13,7 @@ from project_creator.core.storage import Storage
 from project_creator.core.tools import ToolExecutor
 from project_creator.core.manifest import ProjectManifest
 from project_creator.core.session import SessionManager
+from project_creator.core.orchestrator import Orchestrator
 from project_creator.router.provider_router import ProviderRouter
 from project_creator.agents.planner_agent import PlannerAgent
 from project_creator.agents.coder_agent import CoderAgent
@@ -22,72 +22,48 @@ from project_creator.agents.repair_agent import RepairAgent
 
 app = FastAPI()
 
-class SessionState:
+class GlobalState:
     def __init__(self):
-        self._router = None
-        self._planner = None
-        self._coder = None
-        self._critique_agent = None
-        self._repair_agent = None
-        self.storage = None
-        self.tools = None
-        self.manifest = None
-        self.session = None
-        self.blueprint = None
-        self.generated_files = {}
+        self.router = ProviderRouter()
+        self.orch = None
 
-    @property
-    def router(self):
-        if not self._router: self._router = ProviderRouter()
-        return self._router
-    @property
-    def planner(self):
-        if not self._planner: self._planner = PlannerAgent(self.router)
-        return self._planner
-    @property
-    def coder(self):
-        if not self._coder: self._coder = CoderAgent(self.router)
-        return self._coder
-    @property
-    def critique_agent(self):
-        if not self._critique_agent: self._critique_agent = CritiqueAgent(self.router)
-        return self._critique_agent
-    @property
-    def repair_agent(self):
-        if not self._repair_agent: self._repair_agent = RepairAgent(self.router)
-        return self._repair_agent
+    def init_project(self, name, goal):
+        storage = Storage(name)
+        tools = ToolExecutor(name)
+        manifest = ProjectManifest(storage.project_root)
+        session = SessionManager(storage.project_root)
+        agents = {
+            'planner': PlannerAgent(self.router),
+            'coder': CoderAgent(self.router),
+            'critique': CritiqueAgent(self.router),
+            'repair': RepairAgent(self.router)
+        }
+        self.orch = Orchestrator(self.router, agents, storage, tools, manifest, session)
+        return self.orch.plan(goal)
 
-state = SessionState()
+state = GlobalState()
 
-@app.post("/initialize")
-async def initialize_project(goal: str = Body(...), project_name: str = Body(...)):
-    state.storage = Storage(project_name)
-    state.tools = ToolExecutor(project_name)
-    state.manifest = ProjectManifest(state.storage.project_root)
-    state.session = SessionManager(state.storage.project_root)
-    state.manifest.create(goal, "python-v1", [])
-    return {"status": "initialized", "id": project_name}
+@app.post("/start")
+async def start(goal: str = Body(...), name: str = Body(...)):
+    blueprint = state.init_project(name, goal)
+    return blueprint
 
-@app.post("/plan")
-async def plan_project(goal: str = Body(...)):
-    state.blueprint = state.planner.create_blueprint(goal)
-    state.manifest.update_field("files", [f['path'] for f in state.blueprint['files']])
-    state.session.save_session(state.blueprint, state.generated_files, [], [])
-    return state.blueprint
+@app.post("/process_file")
+async def process_file(file: Dict[str, str]):
+    if not state.orch: raise HTTPException(400, "Project not initialized")
+    return state.orch.generate_and_validate(file)
 
-@app.post("/apply")
-async def apply_file(path: str = Body(...), content: str = Body(...)):
-    if state.storage.write_file(path, content, interactive=False):
-        state.generated_files[path] = content
-        state.manifest.add_approval(path)
-        state.session.save_session(state.blueprint, state.generated_files, [], [p for p in state.generated_files])
-        return {"status": "success"}
+@app.post("/approve")
+async def approve(path: str = Body(...), content: str = Body(...)):
+    if not state.orch: raise HTTPException(400, "Project not initialized")
+    if state.orch.apply(path, content):
+        return {"status": "ok"}
     return {"status": "error"}
 
 @app.get("/manifest")
 async def get_manifest():
-    if not state.manifest: return {}
-    return state.manifest.load()
+    if not state.orch: return {}
+    return state.orch.manifest.load()
 
 if __name__ == "__main__":
     import uvicorn

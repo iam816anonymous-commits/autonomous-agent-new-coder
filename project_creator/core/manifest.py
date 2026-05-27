@@ -7,20 +7,36 @@ class ProjectManifest:
         self.path = os.path.join(project_root, "project.yaml")
 
     def create(self, goal, stack, files):
+        # Infer modules from paths (e.g. backend/main.py -> backend)
+        modules = {}
+        for f in files:
+            parts = f.split('/')
+            m = parts[0] if len(parts) > 1 else "root"
+            if m not in modules: modules[m] = []
+            modules[m].append(f)
+
         data = {
             "project": {
-                "id": f"proj_{int(time.time())}",
+                "id": f"p_{int(time.time())}",
                 "goal": goal,
                 "stack": stack,
-                "status": "initialized",
+                "status": "active",
+                "modules": modules,
                 "files": files,
-                "context": {},
-                "patches": {"pending": [], "approved": []},
                 "approvals": [],
-                "validation": {"tests": "pending", "architecture_consistency": "pending"},
-                "sessions": []
+                "validation": {"tests": "pending"}
             }
         }
+        os.makedirs(os.path.dirname(self.path), exist_ok=True)
+        with open(self.path, 'w') as f:
+            yaml.dump(data, f, sort_keys=False)
+
+    def add_approval(self, path):
+        if not os.path.exists(self.path): return
+        with open(self.path, 'r') as f:
+            data = yaml.safe_load(f)
+        if path not in data['project']['approvals']:
+            data['project']['approvals'].append(path)
         with open(self.path, 'w') as f:
             yaml.dump(data, f, sort_keys=False)
 
@@ -28,26 +44,7 @@ class ProjectManifest:
         if not os.path.exists(self.path): return
         with open(self.path, 'r') as f:
             data = yaml.safe_load(f)
-
-        # Handle simple nesting for the project root
         data['project'][key] = value
-
-        with open(self.path, 'w') as f:
-            yaml.dump(data, f, sort_keys=False)
-
-    def add_approval(self, file_path):
-        if not os.path.exists(self.path): return
-        with open(self.path, 'r') as f:
-            data = yaml.safe_load(f)
-        data['project']['approvals'].append(file_path)
-        with open(self.path, 'w') as f:
-            yaml.dump(data, f, sort_keys=False)
-
-    def add_session(self, session_id):
-        if not os.path.exists(self.path): return
-        with open(self.path, 'r') as f:
-            data = yaml.safe_load(f)
-        data['project']['sessions'].append(session_id)
         with open(self.path, 'w') as f:
             yaml.dump(data, f, sort_keys=False)
 

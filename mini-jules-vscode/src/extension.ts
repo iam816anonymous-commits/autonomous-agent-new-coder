@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import { showDiff } from './bridge';
 import { JulesCodeLensProvider } from './codelens';
 
 export function activate(context: vscode.ExtensionContext) {
@@ -10,10 +9,8 @@ export function activate(context: vscode.ExtensionContext) {
     );
 
     context.subscriptions.push(
-        vscode.commands.registerCommand('MiniJules.Generate', () => provider.triggerAction('Generate')),
-        vscode.commands.registerCommand('MiniJules.Critique', () => provider.triggerAction('Critique')),
-        vscode.commands.registerCommand('MiniJules.Repair', () => provider.triggerAction('Repair')),
-        vscode.commands.registerCommand('MiniJules.Manifest', () => provider.triggerAction('Manifest'))
+        vscode.commands.registerCommand('MiniJules.Generate', () => provider.sendCommand('generate')),
+        vscode.commands.registerCommand('MiniJules.Manifest', () => provider.sendCommand('show_manifest'))
     );
 
     context.subscriptions.push(
@@ -29,80 +26,37 @@ class JulesViewProvider implements vscode.WebviewViewProvider {
 
     public resolveWebviewView(webviewView: vscode.WebviewView) {
         this._view = webviewView;
-        webviewView.webview.options = {
-            enableScripts: true,
-            localResourceRoots: [this._extensionUri]
-        };
-        webviewView.webview.html = this._getHtml(webviewView.webview);
+        webviewView.webview.options = { enableScripts: true, localResourceRoots: [this._extensionUri] };
+        webviewView.webview.html = this._getHtml();
 
-        webviewView.webview.onDidReceiveMessage(async (data) => {
-            try {
-                switch (data.type) {
-                    case 'request_plan':
-                        const res = await this._callBackend('/plan', { goal: data.goal });
-                        this._view?.webview.postMessage({ type: 'blueprint', value: res });
-                        break;
-                    case 'approve_file':
-                        await this._callBackend('/apply', { path: data.path, content: data.content });
-                        vscode.window.showInformationMessage(`Applied: \${data.path}`);
-                        break;
-                }
-            } catch (e) {
-                vscode.window.showErrorMessage(`Backend Error: \${e}`);
+        webviewView.webview.onDidReceiveMessage(data => {
+            if (data.type === 'api_call') {
+                this._handleApi(data.endpoint, data.body);
             }
         });
     }
 
-    public triggerAction(action: string) {
-        this._view?.webview.postMessage({ type: 'action', value: action });
+    public sendCommand(cmd: string) {
+        this._view?.webview.postMessage({ type: 'command', value: cmd });
     }
 
-    private async _callBackend(endpoint: string, body: any) {
-        // In a real extension, we would use axios or fetch to localhost:8000
-        console.log('Calling backend:', endpoint, body);
-        return { status: 'mocked' };
+    private async _handleApi(endpoint: string, body: any) {
+        console.log(`VSCode Bridge: \${endpoint}`, body);
+        // Logic to fetch(http://localhost:8000 + endpoint)
     }
 
-    private _getHtml(webview: vscode.Webview) {
-        return `<!DOCTYPE html>
-        <html>
-        <head>
-            <style>
-                body { font-family: sans-serif; padding: 10px; color: #ccc; }
-                .btn { background: #007acc; color: white; border: none; padding: 8px; width: 100%; cursor: pointer; border-radius: 2px; }
-                .input { width: 100%; padding: 8px; margin: 10px 0; background: #333; color: white; border: 1px solid #555; box-sizing: border-box; }
-                .card { border: 1px solid #444; padding: 10px; margin-top: 10px; border-radius: 4px; }
-                .tab-bar { display: flex; border-bottom: 1px solid #444; margin-bottom: 10px; }
-                .tab { padding: 5px 10px; cursor: pointer; font-size: 12px; }
-                .tab.active { border-bottom: 2px solid #007acc; color: white; }
-            </style>
-        </head>
-        <body>
-            <div class="tab-bar">
-                <div class="tab active" onclick="tab('plan')">Plan</div>
-                <div class="tab" onclick="tab('status')">Status</div>
-            </div>
-            <div id="plan-view">
-                <h3>Architecture</h3>
-                <input class="input" id="goal" placeholder="What shall we build?">
-                <button class="btn" onclick="sendPlan()">Architect Project</button>
-                <div id="blueprint-list"></div>
-            </div>
+    private _getHtml() {
+        return `<html><body>
+            <h3>Unified Jules</h3>
+            <button onclick="call('start', {goal:'App', name:'my_app'})">Start Project</button>
+            <div id="log"></div>
             <script>
                 const vscode = acquireVsCodeApi();
-                function tab(n) { console.log('tab', n); }
-                function sendPlan() {
-                    const goal = document.getElementById('goal').value;
-                    vscode.postMessage({ type: 'request_plan', goal });
+                function call(endpoint, body) {
+                    document.getElementById('log').innerText = 'Calling ' + endpoint;
+                    vscode.postMessage({ type: 'api_call', endpoint, body });
                 }
-                window.addEventListener('message', event => {
-                    const msg = event.data;
-                    if(msg.type === 'blueprint') {
-                        document.getElementById('blueprint-list').innerHTML = '<p>Plan received!</p>';
-                    }
-                });
             </script>
-        </body>
-        </html>`;
+        </body></html>`;
     }
 }

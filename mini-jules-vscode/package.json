@@ -1,8 +1,9 @@
 {
   "name": "mini-jules",
   "displayName": "Mini Jules",
+  "publisher": "jules-autonomous",
   "description": "Autonomous Multi-File Project Generator",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "engines": {
     "vscode": "^1.90.0"
   },
@@ -42,6 +43,10 @@
       {
         "command": "MiniJules.Repair",
         "title": "Jules: Repair File"
+      },
+      {
+        "command": "MiniJules.ApplyPatch",
+        "title": "Jules: Apply Patch"
       },
       {
         "command": "MiniJules.Manifest",

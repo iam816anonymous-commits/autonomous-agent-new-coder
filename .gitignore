@@ -1,0 +1,9 @@
+node_modules/
+__pycache__/
+*.pyc
+out/
+dist/
+*.vsix
+.agent_session.json
+project.yaml
+agent_audit.log

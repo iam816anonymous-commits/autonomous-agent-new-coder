@@ -1,3 +1,7 @@
+fastapi
+uvicorn
+pydantic
+pyyaml
 google-genai
 groq
 openai
@@ -5,4 +9,3 @@ playwright
 pytest
 ruff
 black
-pyyaml

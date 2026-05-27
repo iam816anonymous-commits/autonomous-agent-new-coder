@@ -1,44 +1,39 @@
-# 🤖 Mini Jules: Autonomous Multi-File Project Generator
+# 🤖 Mini Jules: Production-Hardened Autonomous Engineering Agent
 
-Mini Jules is an autonomous engineering agent designed to architect, generate, and repair full-stack projects using a suite of high-performance AI models (Gemini 2.5 Flash, Groq, OpenRouter). It integrates directly into VS Code as a native extension, providing a seamless Developer Experience (DX).
+Mini Jules is a high-performance autonomous engineering agent designed to architect, generate, and repair full-stack projects using elite AI models (Gemini 2.5 Flash, Groq, OpenRouter). It features a security-first SDLC loop and integrates directly into VS Code.
 
 ## 🚀 Key Features
 
-- **Autonomous Project Creation**: From a single prompt to a structured multi-file project.
-- **SDLC Orchestration**: Strict lifecycle (Plan → Generate → Critique → Repair → Approve → Apply).
-- **Multi-Provider Routing**: Primary Gemini 2.5 Flash with resilient fallbacks to Groq, OpenRouter, and ChatGPT Browser.
+- **Autonomous Multi-File Generation**: From single prompt to logically grouped modules.
+- **Strict SDLC Loop**: Immutable lifecycle (Plan → Generate → Sandbox Dry-run → Critique → Repair → Approval → Apply).
+- **Security Constitution**: Hardened prompts that proactively block common vulnerabilities (SQLi, XSS, hardcoded secrets).
+- **Sandbox Dry-run**: Automatic linting and validation of generated code in isolated temporary directories.
+- **Production Audit Logging**: Every command executed by the agent is recorded in `agent_audit.log`.
 - **VS Code Native**: Sidebar GUI, CodeLens inline actions, and native diff-based patch reviews.
-- **Secure Sandbox**: Strictly whitelisted tool execution and path traversal protection.
-- **Project Manifest**: YAML-based source of truth tracking goals, stacks, and files.
+- **Multi-Provider Routing**: Resilient fallback chain with exponential backoff retries.
 
 ## 📦 Project Structure
 
-- `project_creator/`: Python backend containing the agentic engine and FastAPI bridge.
-- `mini-jules-vscode/`: TypeScript VS Code extension for the GUI and editor integration.
+- `project_creator/`: Python backend (Agents, Orchestrator, FastAPI bridge).
+- `mini-jules-vscode/`: TypeScript VS Code extension (GUI, Workspace integration).
 
-## 🛠️ Getting Started
+## 🛠️ Setup
 
-### 1. Requirements
-- Python 3.10+
-- Node.js & npm
-- Gemini/Groq/OpenRouter API Keys
-
-### 2. Setup Backend
+### Backend
 ```bash
 pip install -r requirements.txt
 python -m project_creator.server
 ```
 
-### 3. Setup Extension
+### VS Code Extension
 ```bash
 cd mini-jules-vscode
 npm install
 npm run compile
 ```
-Then load the extension in VS Code.
 
-## 🛡️ Governance & Safety
-Mini Jules operates under a strict **Sandbox Constitution**. It can format code and run tests but is blocked from credential mutation, shell escalation, or recursive self-modification.
+## 🛡️ Sandbox Constitution
+Mini Jules is restricted to a whitelisted set of commands (`pytest`, `ruff`, `black`, `python3`). It is strictly blocked from shell escalation, system mutations, or credential edits.
 
 ---
-*Built for the next generation of autonomous software engineering.*
+*Mini Jules: Building secure software autonomously.*

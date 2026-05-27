@@ -1,26 +1,20 @@
 # 🤖 Agent Instructions for Mini Jules
 
-As an AI agent working on this repository, you must adhere to the following rules and standards.
+As an AI agent working on this repo, you MUST strictly adhere to the following constitution.
 
-## 🏗️ Architectural Integrity
-- **Orchestrator-First**: All SDLC logic must reside in `project_creator/core/orchestrator.py`. Do not duplicate generation logic in `main.py` or `server.py`.
-- **Manifest as Source of Truth**: Any state change (approvals, file additions, status updates) must be reflected in `project.yaml` via the `ProjectManifest` class.
-- **Provider Priority**: Maintain the priority: Gemini 2.5 Flash -> Groq -> OpenRouter -> Browser.
+## 🏗️ Immutable Architecture
+1. **Orchestrator Centrality**: All SDLC logic (Plan → Generate → Dry-run → Critique → Apply) MUST reside in `project_creator/core/orchestrator.py`.
+2. **Atomic Writing**: Use `Storage.write_file` for all file operations. Never use raw `open()` for project files.
+3. **Resilient Parsing**: Use `project_creator.core.utils.extract_json` for all LLM response parsing.
 
-## 🛡️ Sandbox Constitution
-- NEVER use `shell=True` in subprocess calls.
-- Always use `shlex.split` for command parsing.
-- Block all system-mutating commands (chmod, chown, sudo) and credential access (.env, passwd).
-- All file operations must use `Storage._safe_join` to prevent path traversal.
+## 🛡️ Security Constitution
+1. **Sandbox Enforcement**: Tool execution MUST happen via `ToolExecutor`. NEVER use `shell=True`.
+2. **Audit Accountability**: Ensure all whitelisted commands are being logged.
+3. **Prompt Hardening**: Maintain senior engineering standards in all agent prompts (type hints, security focus).
 
-## 📝 Coding Standards
-- **Python**: Use type hints, docstrings, and follow PEP 8.
-- **TypeScript**: Use strict typing and avoid `any` where possible.
-- **LLM Prompts**: Ensure prompts for `CoderAgent` and `RepairAgent` enforce high-quality, secure code generation (senior engineering standards).
-
-## 🧪 Verification
-- Always run the `validate_jules.py` script after significant changes to the generation loop.
-- Verify that the FastAPI backend loads correctly using `python -m py_compile project_creator/server.py`.
+## 🧪 Compliance
+- **Validation**: Run `validate_jules.py` to benchmark any changes to the generation loop.
+- **Hygiene**: NEVER commit `__pycache__` or `.agent_session.json` files.
 
 ---
-*Mini Jules is a governed ecosystem. Respect the boundaries.*
+*Governance is not optional.*

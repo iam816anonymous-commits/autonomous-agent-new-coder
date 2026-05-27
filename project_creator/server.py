@@ -2,8 +2,9 @@ import os
 import sys
 from fastapi import FastAPI, HTTPException, Body
 from typing import List, Dict, Any
+import re
 
-# Project setup
+# Project root setup
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_dir)
 if project_root not in sys.path:
@@ -28,6 +29,10 @@ class GlobalState:
         self.orch = None
 
     def init_project(self, name, goal):
+        # Security Improvisation: Validate project name to prevent path injection
+        if not re.match(r'^[a-zA-Z0-9_\-]+$', name):
+            raise HTTPException(400, "Invalid project name. Use alphanumeric, underscore, or hyphen.")
+
         storage = Storage(name)
         tools = ToolExecutor(name)
         manifest = ProjectManifest(storage.project_root)

@@ -30,7 +30,7 @@ class RepoLearner:
             with open(full_path, 'r', encoding='utf-8') as f:
                 content = f.read()
                 if content:
-                    bus.publish("FILE_OPEN", {
+                    collector.collect("FILE_OPEN", {
                         "path": rel_path,
                         "content": content
                     })

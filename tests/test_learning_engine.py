@@ -28,7 +28,8 @@ def test_workspace(tmp_path):
 def test_repo_learner(test_db, test_workspace):
     # Setup pattern learner to listen
     from project_creator.learning.pattern_learner import PatternLearner
-    pl = PatternLearner(test_db)
+    from project_creator.learning import pattern_learner
+    pattern_learner.memory = CodingMemory(test_db)
 
     rl = RepoLearner(test_workspace)
     rl.scan_workspace()

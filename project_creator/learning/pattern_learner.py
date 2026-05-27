@@ -22,7 +22,10 @@ class PatternLearner:
     def learn_from_file(self, data):
         # Learn from existing codebase style
         content = data.get('content', '')
+        path = data.get('path', '')
         self._extract_patterns(content)
+        # Also index existing files semantically
+        self.vector_store.add(content, {"path": path, "type": "existing_code"})
 
     def _extract_patterns(self, content):
         if not content: return

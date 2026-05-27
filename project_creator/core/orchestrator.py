@@ -3,6 +3,7 @@ import json
 import shutil
 import tempfile
 from typing import Dict, Any, List
+from project_creator.learning.collector import collector
 
 class Orchestrator:
     def __init__(self, router, agents, storage, tools, manifest, session):
@@ -25,6 +26,8 @@ class Orchestrator:
         if self.blueprint:
              self.manifest.create(goal, "python-sandbox", [f['path'] for f in self.blueprint['files']])
              self.session.save_session(self.blueprint, {}, [], [])
+             # Learning Event
+             collector.collect("PLAN_CREATED", {"goal": goal, "files": [f['path'] for f in self.blueprint['files']]})
         return self.blueprint
 
     def generate_and_validate(self, file_meta: Dict[str, str]):
@@ -47,7 +50,6 @@ class Orchestrator:
                 os.makedirs(os.path.dirname(sandbox_path), exist_ok=True)
                 with open(sandbox_path, "w") as f: f.write(content)
 
-                # Use ToolExecutor on sandbox
                 orig_root = self.tools.project_root
                 self.tools.project_root = sandbox_root
                 lint_res = self.tools.run_lint(path)
@@ -66,6 +68,8 @@ class Orchestrator:
                 patch = self.repair.propose_patch(path, content, combined, self.blueprint, self.generated_files)
                 if patch and patch.get('new_content'):
                     content = patch['new_content']
+                    # Learning Event
+                    collector.collect("REPAIR", {"path": path, "issues": combined})
                 else: break
             finally:
                 shutil.rmtree(sandbox_root)
@@ -77,5 +81,7 @@ class Orchestrator:
             self.generated_files[path] = content
             self.manifest.add_approval(path)
             self.session.save_session(self.blueprint, self.generated_files, [], [p for p in self.generated_files])
+            # Learning Event
+            collector.collect("PATCH_ACCEPTED", {"path": path, "content": content})
             return True
         return False

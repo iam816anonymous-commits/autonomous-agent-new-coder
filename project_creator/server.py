@@ -20,18 +20,23 @@ from project_creator.agents.planner_agent import PlannerAgent
 from project_creator.agents.coder_agent import CoderAgent
 from project_creator.agents.critique_agent import CritiqueAgent
 from project_creator.agents.repair_agent import RepairAgent
+from project_creator.learning.collector import collector
 
 app = FastAPI()
 
 class GlobalState:
     def __init__(self):
-        self.router = ProviderRouter()
+        self._router = None
         self.orch = None
 
+    @property
+    def router(self):
+        if not self._router: self._router = ProviderRouter()
+        return self._router
+
     def init_project(self, name, goal):
-        # Security Improvisation: Validate project name to prevent path injection
         if not re.match(r'^[a-zA-Z0-9_\-]+$', name):
-            raise HTTPException(400, "Invalid project name. Use alphanumeric, underscore, or hyphen.")
+            raise HTTPException(400, "Invalid project name.")
 
         storage = Storage(name)
         tools = ToolExecutor(name)
@@ -50,17 +55,16 @@ state = GlobalState()
 
 @app.post("/start")
 async def start(goal: str = Body(...), name: str = Body(...)):
-    blueprint = state.init_project(name, goal)
-    return blueprint
+    return state.init_project(name, goal)
 
 @app.post("/process_file")
 async def process_file(file: Dict[str, str]):
-    if not state.orch: raise HTTPException(400, "Project not initialized")
+    if not state.orch: raise HTTPException(400, "Not initialized")
     return state.orch.generate_and_validate(file)
 
 @app.post("/approve")
 async def approve(path: str = Body(...), content: str = Body(...)):
-    if not state.orch: raise HTTPException(400, "Project not initialized")
+    if not state.orch: raise HTTPException(400, "Not initialized")
     if state.orch.apply(path, content):
         return {"status": "ok"}
     return {"status": "error"}
@@ -69,6 +73,11 @@ async def approve(path: str = Body(...), content: str = Body(...)):
 async def get_manifest():
     if not state.orch: return {}
     return state.orch.manifest.load()
+
+@app.post("/events")
+async def receive_event(event: Dict[str, Any]):
+    collector.collect(event.get("type", "UNKNOWN"), event.get("data", {}))
+    return {"status": "ok"}
 
 if __name__ == "__main__":
     import uvicorn

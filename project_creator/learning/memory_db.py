@@ -34,6 +34,40 @@ class CodingMemory:
                 )
             ''')
 
+            # Reality Learning: Git Evolution
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS git_commits (
+                    hash TEXT PRIMARY KEY,
+                    author TEXT,
+                    message TEXT,
+                    timestamp DATETIME,
+                    repo_path TEXT
+                )
+            ''')
+
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS commit_files (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    commit_hash TEXT,
+                    file_path TEXT,
+                    change_type TEXT,
+                    content_after TEXT,
+                    FOREIGN KEY(commit_hash) REFERENCES git_commits(hash)
+                )
+            ''')
+
+            # Reality Learning: Failures
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS failures (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    type TEXT,
+                    path TEXT,
+                    error_msg TEXT,
+                    context_snippet TEXT,
+                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+
             # (Other v13 tables re-included here)
             cursor.execute('CREATE TABLE IF NOT EXISTS patterns (id INTEGER PRIMARY KEY AUTOINCREMENT, pattern_type TEXT, content TEXT, frequency INTEGER DEFAULT 1, preference_score REAL DEFAULT 1.0, last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP)')
             cursor.execute('CREATE TABLE IF NOT EXISTS snippets (id INTEGER PRIMARY KEY AUTOINCREMENT, file_path TEXT, content TEXT, tags TEXT, status TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)')
@@ -54,6 +88,30 @@ class CodingMemory:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute('INSERT INTO anti_patterns (content, reason, severity) VALUES (?, ?, ?)', (content, reason, severity))
+            conn.commit()
+
+    def log_git_commit(self, commit_data):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT OR IGNORE INTO git_commits (hash, author, message, timestamp, repo_path)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (commit_data['hash'], commit_data['author'], commit_data['message'], commit_data['timestamp'], commit_data['repo_path']))
+
+            for file_data in commit_data.get('files', []):
+                cursor.execute('''
+                    INSERT INTO commit_files (commit_hash, file_path, change_type, content_after)
+                    VALUES (?, ?, ?, ?)
+                ''', (commit_data['hash'], file_data['path'], file_data['type'], file_data.get('content')))
+            conn.commit()
+
+    def log_failure(self, f_type, path, error, context=""):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO failures (type, path, error_msg, context_snippet)
+                VALUES (?, ?, ?, ?)
+            ''', (f_type, path, error, context))
             conn.commit()
 
     # Restoration of necessary v13 methods

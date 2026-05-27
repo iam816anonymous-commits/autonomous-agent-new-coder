@@ -1,10 +1,32 @@
 import * as vscode from 'vscode';
+import { JulesCodeLensProvider } from './codelens';
 
 export function activate(context: vscode.ExtensionContext) {
     const provider = new JulesViewProvider(context.extensionUri);
 
     context.subscriptions.push(
         vscode.window.registerWebviewViewProvider(JulesViewProvider.viewType, provider)
+    );
+
+    // Register CodeLens
+    context.subscriptions.push(
+        vscode.languages.registerCodeLensProvider(
+            { scheme: 'file', language: 'python' },
+            new JulesCodeLensProvider()
+        )
+    );
+
+    // Register Commands
+    context.subscriptions.push(
+        vscode.commands.registerCommand('MiniJules.Generate', async (args) => {
+            vscode.window.showInformationMessage(`Mini Jules: Generating for ${args?.path || 'workspace'}...`);
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('MiniJules.Repair', async (args) => {
+            vscode.window.showInformationMessage(`Mini Jules: Repairing ${args?.path}...`);
+        })
     );
 }
 

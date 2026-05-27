@@ -1,6 +1,7 @@
 import time
 import re
 from .event_bus import bus
+from .constitution import LearningConstitution
 
 class ActivityCollector:
     def __init__(self):
@@ -20,6 +21,10 @@ class ActivityCollector:
         if 'path' in data and not self._is_safe(data['path']):
             print(f"🛡️  Learning Collector: Blocked unsafe path {data['path']}")
             return
+
+        # Apply Constitution Scrubbing
+        if 'content' in data:
+            data['content'] = LearningConstitution.scrub(data['content'])
 
         event = {
             "type": event_type,

@@ -2,6 +2,7 @@ import ast
 import re
 from .event_bus import bus
 from .memory_db import CodingMemory
+from .constitution import LearningConstitution
 
 class PatternLearner:
     def __init__(self, db_path):
@@ -25,6 +26,9 @@ class PatternLearner:
 
     def _extract_patterns(self, content):
         if not content: return
+
+        # Apply Constitution Scrubbing before learning
+        content = LearningConstitution.scrub(content)
 
         # 1. Extract Imports
         try:

@@ -9,3 +9,5 @@ playwright
 pytest
 ruff
 black
+faiss-cpu
+sentence-transformers

@@ -54,3 +54,14 @@ class ProjectManifest:
             with open(self.path, 'r') as f:
                 return yaml.safe_load(f)
         return None
+
+    def update_field(self, field, value):
+        if not os.path.exists(self.path): return
+        with open(self.path, 'r') as f:
+            data = yaml.safe_load(f)
+
+        # Support nested update for "project"
+        data['project'][field] = value
+
+        with open(self.path, 'w') as f:
+            yaml.dump(data, f, sort_keys=False)

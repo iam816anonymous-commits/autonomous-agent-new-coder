@@ -62,6 +62,13 @@ class Orchestrator:
                 if audit.get('verdict') == "PASS" and not physical_issues:
                     return {"path": path, "content": content, "status": "validated"}
 
+                # Learning Event: Validation Failure
+                from project_creator.learning.event_bus import bus
+                if audit.get('verdict') != "PASS":
+                    bus.publish("CRITIQUE_FAILED", {"path": path, "type": "CRITIQUE", "error": str(audit.get('issues')), "content": content})
+                if physical_issues:
+                    bus.publish("VALIDATION_FAILED", {"path": path, "type": "SANDBOX", "error": str(physical_issues), "content": content})
+
                 # 3. Repair with combined virtual/physical feedback
                 combined = audit.get('issues', []) + physical_issues
                 print(f"🛠️  Repairing {path} for: {combined}")

@@ -4,6 +4,8 @@ import shutil
 import tempfile
 from typing import Dict, Any, List
 from project_creator.learning.collector import collector
+from project_creator.brain.engineering_brain import EngineeringBrain
+from project_creator.learning import DB_PATH
 
 class Orchestrator:
     def __init__(self, router, agents, storage, tools, manifest, session):
@@ -21,6 +23,11 @@ class Orchestrator:
         self.generated_files = {}
 
     def plan(self, goal: str):
+        # 0. Brain Consultation & Strategy Document
+        brain = EngineeringBrain(DB_PATH)
+        strategy_doc, strategy_data = brain.consult(goal)
+        print(f"\n🧠 BRAIN STRATEGY:\n{strategy_doc}\n")
+
         print(f"🏗️  Architecting: {goal}")
         self.blueprint = self.planner.create_blueprint(goal)
         if self.blueprint:

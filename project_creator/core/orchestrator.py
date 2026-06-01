@@ -6,6 +6,10 @@ from typing import Dict, Any, List
 from project_creator.learning.collector import collector
 from project_creator.brain.engineering_brain import EngineeringBrain
 from project_creator.learning import DB_PATH
+from project_creator.agents.dialogue_agent import DialogueAgent
+from project_creator.brain.dependency_analyzer import DependencyAnalyzer
+from project_creator.core.test_executor import TestExecutor
+from project_creator.core.error_classifier import ErrorClassifier
 
 class Orchestrator:
     def __init__(self, router, agents, storage, tools, manifest, session):
@@ -14,6 +18,13 @@ class Orchestrator:
         self.coder = agents['coder']
         self.critique = agents['critique']
         self.repair = agents['repair']
+
+        # New Agents
+        self.dialogue = DialogueAgent(router)
+        self.dependency_analyzer = DependencyAnalyzer()
+        self.test_executor = TestExecutor(storage.project_root)
+        self.error_classifier = ErrorClassifier()
+
         self.storage = storage
         self.tools = tools
         self.manifest = manifest
@@ -21,6 +32,52 @@ class Orchestrator:
 
         self.blueprint = None
         self.generated_files = {}
+
+    def gather_requirements(self, goal):
+        return self.dialogue.gather_requirements(goal)
+
+    def validate_architecture_with_user(self, architecture):
+        print("\n🔍 Validating Architecture...")
+        verdict = self.dialogue.validate_architecture(architecture)
+        print(f"Brain Verdict: {verdict}")
+        return verdict
+
+    def generate_with_dependency_order(self):
+        if not self.blueprint: return
+        self.dependency_analyzer.analyze_project(self.blueprint['files'])
+        order = self.dependency_analyzer.get_dependency_order()
+
+        print(f"📊 Generation Order: {' -> '.join(order)}")
+
+        # Mapping path back to file metadata
+        meta_map = {f['path']: f for f in self.blueprint['files']}
+
+        for path in order:
+            if path in meta_map:
+                res = self.generate_and_validate(meta_map[path])
+                self.apply(path, res['content'])
+
+    def validate_dependencies(self):
+        print("🔗 Validating inter-file dependencies...")
+        return self.dependency_analyzer.analyze_project(self.blueprint['files'] if self.blueprint else [])
+
+    def run_tests_with_repair(self, max_repair_cycles=3):
+        print("🧪 Starting Test-Driven Repair Cycle...")
+        for cycle in range(max_repair_cycles):
+            res = self.test_executor.run_tests()
+            if res.get('returncode') == 0:
+                print("✅ All tests passed!")
+                return True
+
+            context = self.test_executor.generate_repair_context(res)
+            cat, sev = self.error_classifier.classify_error(context['stderr'])
+            plan = self.error_classifier.get_repair_plan(cat)
+
+            print(f"❌ Test Failed (Cycle {cycle+1}). Category: {cat.value}, Severity: {sev.name}")
+            print(f"💡 Repair Plan: {plan}")
+
+            # Real repair would loop through files and patch
+        return False
 
     def plan(self, goal: str):
         # 0. Brain Consultation & Strategy Document

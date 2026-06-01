@@ -135,6 +135,8 @@ class CodingMemory:
             conn.commit()
 
     def add_snippet(self, path, content, status):
+        # Ensure schema exists before write
+        self._init_db()
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute('INSERT INTO snippets (file_path, content, status) VALUES (?, ?, ?)', (path, content, status))

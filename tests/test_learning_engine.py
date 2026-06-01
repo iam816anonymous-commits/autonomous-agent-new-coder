@@ -29,10 +29,15 @@ def test_repo_learner(test_db, test_workspace):
     # Setup pattern learner to listen
     from project_creator.learning.pattern_learner import PatternLearner
     from project_creator.learning import pattern_learner
+
+    orig_memory = pattern_learner.memory
     pattern_learner.memory = CodingMemory(test_db)
 
-    rl = RepoLearner(test_workspace)
-    rl.scan_workspace()
+    try:
+        rl = RepoLearner(test_workspace)
+        rl.scan_workspace()
+    finally:
+        pattern_learner.memory = orig_memory
 
     # Check if patterns were learned
     with sqlite3.connect(test_db) as conn:

@@ -1,9 +1,13 @@
 import os
 import getpass
 import sys
+from dotenv import load_dotenv
 
 class Config:
     def __init__(self):
+        # Load .env file if it exists
+        load_dotenv()
+
         # Gemini 2.5 Flash is primary for this project
         self.api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
         if not self.api_key and sys.stdin.isatty():

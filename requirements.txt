@@ -9,5 +9,6 @@ playwright
 pytest
 ruff
 black
+python-dotenv
 faiss-cpu
 sentence-transformers

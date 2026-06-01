@@ -1,11 +1,12 @@
 import os
 import getpass
+import sys
 
 class Config:
     def __init__(self):
         # Gemini 2.5 Flash is primary for this project
         self.api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-        if not self.api_key:
+        if not self.api_key and sys.stdin.isatty():
             print("Gemini API Key missing from environment variables.")
             # Fallback to interactive prompt as requested
             self.api_key = getpass.getpass("Please enter your Gemini API Key: ")

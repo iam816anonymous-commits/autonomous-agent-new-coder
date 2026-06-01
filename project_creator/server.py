@@ -43,7 +43,7 @@ class GlobalState:
         if not self._router: self._router = ProviderRouter()
         return self._router
 
-    def init_project(self, name, goal):
+    def init_project(self, name, goal, plan=True):
         if not re.match(r'^[a-zA-Z0-9_\-]+$', name):
             raise HTTPException(400, "Invalid project name.")
 
@@ -58,9 +58,15 @@ class GlobalState:
             'repair': RepairAgent(self.router)
         }
         self.orch = Orchestrator(self.router, agents, storage, tools, manifest, session)
-        return self.orch.plan(goal)
+        if plan:
+            return self.orch.plan(goal)
+        return {"status": "initialized", "project": name}
 
 state = GlobalState()
+
+@app.post("/initialize")
+async def initialize(goal: str = Body(...), project_name: str = Body(...)):
+    return state.init_project(project_name, goal, plan=False)
 
 @app.post("/start")
 async def start(goal: str = Body(...), name: str = Body(...)):

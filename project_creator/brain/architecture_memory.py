@@ -1,21 +1,20 @@
-from project_creator.learning.memory_db import CodingMemory
 from project_creator.memory.vector_store import VectorStore
 import os
 
 class ArchitectureMemory:
     def __init__(self, db_path):
-        self.memory = CodingMemory(db_path)
-        index_path = os.path.join(os.path.dirname(db_path), "arch_vectors.idx")
-        self.vector_store = VectorStore(index_path)
+        brain_dir = os.path.dirname(db_path)
+        self.vector_store = VectorStore(os.path.join(brain_dir, "brain_architecture.idx"))
 
-    def store_architecture(self, project_type, architecture, deps, success_score=1.0):
-        data = f"Project Type: {project_type}\nArch: {architecture}\nDeps: {', '.join(deps)}"
-        self.vector_store.add(data, {
-            "type": "architecture_template",
+    def store_architecture(self, project_type, architecture, dependencies, success_score=1.0):
+        entry = {
             "project_type": project_type,
             "architecture": architecture,
+            "dependencies": dependencies,
             "success_score": success_score
-        })
+        }
+        text_context = f"Project Type: {project_type}\nArchitecture: {architecture}\nDeps: {', '.join(dependencies)}"
+        self.vector_store.add(text_context, entry)
 
-    def retrieve_recommendation(self, goal):
-        return self.vector_store.search(goal, top_k=2)
+    def retrieve_similar(self, goal, top_k=2):
+        return self.vector_store.search(goal, top_k=top_k)

@@ -4,19 +4,26 @@ import os
 
 class RepairMemory:
     def __init__(self, db_path):
-        self.memory = CodingMemory(db_path)
-        index_path = os.path.join(os.path.dirname(db_path), "jules_vectors.idx")
-        self.vector_store = VectorStore(index_path)
+        self.sql_memory = CodingMemory(db_path)
+        # Brain-specific vector index
+        brain_dir = os.path.dirname(db_path)
+        self.vector_store = VectorStore(os.path.join(brain_dir, "brain_repair.idx"))
 
-    def store_repair(self, error, traceback, root_cause, repair, success=True):
-        data = f"Error: {error}\nCause: {root_cause}\nRepair: {repair}"
-        self.vector_store.add(data, {
-            "type": "repair_pattern",
+    def store_repair(self, error, traceback, root_cause, repair, success_rate=1.0):
+        """Stores a validated repair pattern."""
+        entry = {
             "error": error,
-            "success": success
-        })
-        # Log to SQL as failure/correction
-        self.memory.log_failure("REPAIR_STORE", "brain", error, traceback)
+            "traceback": traceback,
+            "root_cause": root_cause,
+            "repair": repair,
+            "success_rate": success_rate
+        }
+        # Store in vector for semantic retrieval
+        text_context = f"Error: {error}\nTraceback: {traceback}\nRoot Cause: {root_cause}\nRepair: {repair}"
+        self.vector_store.add(text_context, entry)
 
-    def retrieve_similar_repairs(self, error_msg):
-        return self.vector_store.search(error_msg, top_k=3)
+        # Also log to SQL failures for general activity tracking
+        self.sql_memory.log_failure("REPAIR_MEMORY_UPGRADE", "brain", error, repair)
+
+    def retrieve_repairs(self, error_msg, top_k=3):
+        return self.vector_store.search(error_msg, top_k=top_k)

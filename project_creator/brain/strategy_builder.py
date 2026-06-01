@@ -4,40 +4,40 @@ class StrategyBuilder:
     def __init__(self, brain):
         self.brain = brain
 
-    def build_strategy(self, goal, context):
+    def generate_strategy_document(self, goal, context):
         """
-        Creates an explicit Strategy Document.
+        Builds the explicit Strategy Document required before generation.
         """
-        strategy = {
-            "similar_projects": context.get('similar_projects', []),
-            "recommended_architecture": context.get('recommended_arch', 'Modular Monolith'),
-            "recommended_dependencies": context.get('recommended_deps', []),
-            "known_failure_patterns": context.get('failure_patterns', []),
-            "security_recommendations": [
-                "Validate all inputs",
-                "Use secure communication",
-                "Sanitize file paths"
-            ],
-            "implementation_strategy": "Plan-first, then build core modules followed by integration."
-        }
+        doc = f"# 📑 Strategy Document: {goal}\n\n"
 
-        # Format as Markdown Strategy Document
-        doc = f"""# 📑 Strategy Document: {goal}
+        # 1. Architecture Recommendation
+        doc += "## 🏗️ Recommended Architecture\n"
+        doc += f"{context.get('recommended_arch', 'Modular Monolith')}\n\n"
 
-## 🏗️ Recommended Architecture
-{strategy['recommended_architecture']}
+        # 2. Key Dependencies
+        doc += "## 📦 Recommended Dependencies\n"
+        doc += f"- {', '.join(context.get('recommended_deps', ['Python standard library']))}\n\n"
 
-## 📦 Key Dependencies
-{', '.join(strategy['recommended_dependencies'])}
+        # 3. Known Failure Patterns
+        doc += "## ⚠️ Known Failure Patterns (Avoid)\n"
+        failures = context.get('failure_patterns', [])
+        if not failures: doc += "- No historical failures for this type.\n"
+        else:
+            for f in failures: doc += f"- {f}\n"
+        doc += "\n"
 
-## 🛡️ Security & Quality Focus
-- {strategy['security_recommendations'][0]}
-- {strategy['security_recommendations'][1]}
+        # 4. Successful Repair Strategies
+        doc += "## 🛠️ Successful Repair Strategies (Reuse)\n"
+        repairs = context.get('repair_strategies', [])
+        if not repairs: doc += "- No relevant repair patterns found.\n"
+        else:
+            for r in repairs: doc += f"- {r}\n"
+        doc += "\n"
 
-## ⚠️ Known Failure Modes (To Avoid)
-{strategy['known_failure_patterns']}
+        # 5. Security & Implementation Strategy
+        doc += "## 🛡️ Security & Implementation Strategy\n"
+        doc += "- Validate all user input (SQLi, XSS prevention)\n"
+        doc += "- Use secure password hashing where applicable\n"
+        doc += "- Implement health checks for critical modules\n"
 
-## 🛠️ Execution Strategy
-{strategy['implementation_strategy']}
-"""
-        return doc, strategy
+        return doc

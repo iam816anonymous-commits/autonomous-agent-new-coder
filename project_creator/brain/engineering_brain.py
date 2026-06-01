@@ -1,58 +1,56 @@
 from .architecture_memory import ArchitectureMemory
 from .pattern_memory import PatternMemory
 from .repair_memory import RepairMemory
-from .semantic_search import SemanticSearch
 from .strategy_builder import StrategyBuilder
+import os
 
 class EngineeringBrain:
     def __init__(self, db_path):
-        self.db_path = db_path
         self.arch_memory = ArchitectureMemory(db_path)
         self.pattern_memory = PatternMemory(db_path)
         self.repair_memory = RepairMemory(db_path)
-        self.search = SemanticSearch(db_path)
         self.strategy_builder = StrategyBuilder(self)
 
-    def consult(self, goal: str):
+    def consult(self, goal):
         """
-        Retrieves context and builds a strategy before planning.
+        Retrieves memory and builds the Strategy Document.
         """
-        print(f"🧠 Brain: Consulting on goal: {goal}")
+        print(f"🧠 Brain: Consulting on goal '{goal}'")
 
-        similar_projects = self.search.find_similar_projects(goal)
-        arch_rec = self.arch_memory.retrieve_recommendation(goal)
-        patterns = self.pattern_memory.get_best_patterns('api_style')
-        idioms = self.pattern_memory.get_idioms()
+        # Retrieval
+        sim_arch = self.arch_memory.retrieve_similar(goal)
+        sim_repairs = self.repair_memory.retrieve_repairs(goal)
 
         context = {
-            "similar_projects": [p['path'] for p in similar_projects],
-            "recommended_arch": arch_rec[0]['architecture'] if arch_rec else "Modular",
-            "recommended_deps": arch_rec[0].get('deps', []) if arch_rec else [],
-            "failure_patterns": ["Circular imports", "Hardcoded credentials"],
-            "idioms": idioms
+            "recommended_arch": sim_arch[0].get('architecture') if sim_arch else "Standard Modular",
+            "recommended_deps": sim_arch[0].get('dependencies', []) if sim_arch else [],
+            "failure_patterns": [r.get('error') for r in sim_repairs if r.get('success_rate', 1.0) < 0.5],
+            "repair_strategies": [r.get('repair') for r in sim_repairs if r.get('success_rate', 0.0) > 0.7]
         }
 
-        doc, data = self.strategy_builder.build_strategy(goal, context)
-        return doc, data
+        strategy_doc = self.strategy_builder.generate_strategy_document(goal, context)
+        return strategy_doc
 
-    def learn_from_experience(self, session_data):
+    def learn_from_completed_task(self, session_data):
         """
-        Extracts lessons from a completed project.
+        Self-Learning: Updates memories after a successful project.
         """
-        print("🧠 Brain: Extracting lessons from experience...")
-        # 1. Update Architecture Memory
+        print("🧠 Brain: Extracting lessons from completed task...")
+        # (This is triggered by Orchestrator after project completion)
+
+        # 1. Update Architecture
+        blueprint = session_data.get('blueprint', {})
         self.arch_memory.store_architecture(
-            project_type="custom",
-            architecture=session_data.get('blueprint', {}).get('architecture', 'Modular'),
-            deps=[],
-            success_score=1.0
+            project_type=blueprint.get('type', 'custom'),
+            architecture=blueprint.get('architecture', 'modular'),
+            dependencies=[] # Extracted from manifest in real impl
         )
 
-        # 2. Extract Repair Patterns
+        # 2. Update Repairs
         for repair in session_data.get('repairs', []):
             self.repair_memory.store_repair(
                 error=repair['issue'],
                 traceback="",
-                root_cause="Logic error",
+                root_cause="Logic error detected during dry-run",
                 repair=repair['patch']
             )

@@ -7,19 +7,27 @@ class OSLearner:
     def __init__(self, brain: RepositoryBrain):
         self.brain = brain
 
-    def ingest_os_project(self, git_url):
-        repo_name = git_url.split("/")[-1].replace(".git", "")
-        temp_dir = f"temp_os_{repo_name}"
+    def learn_from_github(self, repo_url):
+        repo_name = repo_url.split("/")[-1].replace(".git", "")
+        temp_path = os.path.join("temp_learn", repo_name)
 
-        print(f"🌍 Cloning {git_url} for learning...")
+        print(f"🌍 Brain: Ingesting Open Source {repo_url}")
+
         try:
-            subprocess.run(["git", "clone", "--depth", "1", git_url, temp_dir], check=True)
+            if os.path.exists(temp_path): shutil.rmtree(temp_path)
+            # Clone with depth 1 to save time
+            subprocess.run(["git", "clone", "--depth", "1", repo_url, temp_path], check=True)
 
-            # Learn patterns and architecture
-            findings = self.brain.learn_repository(temp_dir)
-            print(f"✅ Learned from {repo_name}: {findings['architecture']['type']}")
+            # Extract knowledge
+            knowledge = self.brain.ingest_repository(temp_path)
 
+            # Lessons learned
+            return knowledge
+
+        except Exception as e:
+            print(f"❌ Brain OS Learn Failed: {e}")
+            return None
         finally:
-            if os.path.exists(temp_dir):
-                shutil.rmtree(temp_dir)
-                print(f"🗑️ Cleaned up {temp_dir}")
+            if os.path.exists(temp_path):
+                shutil.rmtree(temp_path)
+                print(f"🗑️ Brain: Cleaned up {temp_path}")

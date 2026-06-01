@@ -101,8 +101,16 @@ class Orchestrator:
         if self.storage.write_file(path, content, interactive=False):
             self.generated_files[path] = content
             self.manifest.add_approval(path)
-            self.session.save_session(self.blueprint, self.generated_files, [], [p for p in self.generated_files])
+            self.session.save_session(self.blueprint, self.generated_files, [], [p for p in self.generated_files.keys()])
             # Learning Event
             collector.collect("PATCH_ACCEPTED", {"path": path, "content": content})
             return True
         return False
+
+    def finalize(self):
+        """Triggers self-learning after project completion."""
+        print("🏁 Project finalized. Triggering Brain Self-Learning...")
+        brain = EngineeringBrain(DB_PATH)
+        session_data = self.session.load_session()
+        if session_data:
+            brain.learn_from_completed_task(session_data)

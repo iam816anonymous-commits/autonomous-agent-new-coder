@@ -21,6 +21,7 @@ class CoderAgent:
         - High-quality, production-ready code with type hints and docstrings.
         - Robust error handling and informative logging.
         - Maintain absolute architectural parity.
+        - ALIGN with the architectural patterns and idioms found in your PERSONAL CODING BRAIN memory.
 
         Output ONLY source code. No markdown. No chatter.
         """

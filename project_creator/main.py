@@ -18,11 +18,21 @@ from project_creator.agents.planner_agent import PlannerAgent
 from project_creator.agents.coder_agent import CoderAgent
 from project_creator.agents.critique_agent import CritiqueAgent
 from project_creator.agents.repair_agent import RepairAgent
+from project_creator.learning import initialize_reality_learning
+from project_creator.brain.repository_brain import RepositoryBrain
+from project_creator.learning import DB_PATH
 
 def main():
     print("\n" + "="*50)
     print("🤖 Unified Mini Jules Project Agent")
     print("="*50 + "\n")
+
+    # --- SELF-LEARNING BOOTSTRAP ---
+    print("🧠 Bootstrapping Reality Learning (Ingesting current workspace)...")
+    initialize_reality_learning(".")
+    brain = RepositoryBrain(DB_PATH)
+    brain.ingest_repository(".")
+    print("✅ Self-Learning complete. I now remember how I am built.\n")
 
     router = ProviderRouter()
     name = input("Project Name: ") or "jules_unified"

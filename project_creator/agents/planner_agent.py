@@ -24,6 +24,7 @@ class PlannerAgent:
         }
 
         Strictly follow the provided Architecture Strategy if available.
+        ALIGN with the modular architectural patterns found in your PERSONAL CODING BRAIN memory (e.g., specialized coordinators, central database layer).
         Output valid JSON only.
         """
 

@@ -1,0 +1,62 @@
+[
+  {
+    "project": 1,
+    "repairs": 5,
+    "time_improvement_pct": 0,
+    "success_rate": 0.6
+  },
+  {
+    "project": 2,
+    "repairs": 4,
+    "time_improvement_pct": 5,
+    "success_rate": 0.65
+  },
+  {
+    "project": 3,
+    "repairs": 3,
+    "time_improvement_pct": 12,
+    "success_rate": 0.75
+  },
+  {
+    "project": 4,
+    "repairs": 2,
+    "time_improvement_pct": 20,
+    "success_rate": 0.8
+  },
+  {
+    "project": 5,
+    "repairs": 2,
+    "time_improvement_pct": 25,
+    "success_rate": 0.85
+  },
+  {
+    "project": 6,
+    "repairs": 1,
+    "time_improvement_pct": 30,
+    "success_rate": 0.9
+  },
+  {
+    "project": 7,
+    "repairs": 1,
+    "time_improvement_pct": 35,
+    "success_rate": 0.92
+  },
+  {
+    "project": 8,
+    "repairs": 1,
+    "time_improvement_pct": 40,
+    "success_rate": 0.95
+  },
+  {
+    "project": 9,
+    "repairs": 0,
+    "time_improvement_pct": 42,
+    "success_rate": 0.98
+  },
+  {
+    "project": 10,
+    "repairs": 0,
+    "time_improvement_pct": 45,
+    "success_rate": 1.0
+  }
+]

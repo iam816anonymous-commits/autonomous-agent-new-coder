@@ -6,8 +6,22 @@ class PlannerAgent:
 
     def create_blueprint(self, user_prompt, strategy_doc=None):
         system_prompt = """
-        You are a senior software architect. Generate a structured multi-file project blueprint.
-        Include modules (backend, frontend, etc.) and file paths.
+        You are a senior software architect. Generate a structured HIERARCHICAL project blueprint.
+
+        Structure:
+        {
+          "project_name": "...",
+          "stages": [
+            {
+              "name": "Core Models",
+              "files": [{"path": "...", "description": "..."}]
+            },
+            {
+              "name": "API Layer",
+              "files": [...]
+            }
+          ]
+        }
 
         Strictly follow the provided Architecture Strategy if available.
         Output valid JSON only.

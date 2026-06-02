@@ -7,3 +7,11 @@ dist/
 .agent_session.json
 project.yaml
 agent_audit.log
+__pycache__/
+*.pyc
+.pytest_cache/
+venv/
+test_e2e_project/
+enhanced_demo/
+jules_vman_*
+jules_sandbox_*

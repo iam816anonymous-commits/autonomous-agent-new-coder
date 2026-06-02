@@ -24,7 +24,7 @@ class Orchestrator:
         # Core Components
         self.error_classifier = ErrorClassifier()
         self.test_executor = TestExecutor(storage.project_root)
-        self.repair_strategist = RepairStrategist(agents['repair'], self.error_classifier)
+        self.repair_strategist = RepairStrategist(agents['repair'], self.error_classifier, storage.project_root)
         self.validation_manager = ValidationManager(agents, tools, self.repair_strategist)
         self.gen_coordinator = GenerationCoordinator(self.coder, self.validation_manager)
         self.exec_coordinator = ExecutionCoordinator(tools, self.test_executor)
@@ -96,10 +96,15 @@ class Orchestrator:
         print(f"🏗️  Architecting: {goal}")
         self.blueprint = self.planner.create_blueprint(goal, strategy_doc=self.strategy_doc)
         if self.blueprint:
-             self.manifest.create(goal, "python-sandbox", [f['path'] for f in self.blueprint['files']])
+             # Flatten files for manifest compatibility
+             all_files = []
+             for stage in self.blueprint.get('stages', []):
+                 all_files.extend([f['path'] for f in stage['files']])
+
+             self.manifest.create(goal, "python-sandbox", all_files)
              self.session.save_session(self.blueprint, {}, [], [])
              # Learning Event
-             collector.collect("PLAN_CREATED", {"goal": goal, "files": [f['path'] for f in self.blueprint['files']]})
+             collector.collect("PLAN_CREATED", {"goal": goal, "files": all_files})
         return self.blueprint
 
     def generate_and_validate(self, file_meta: Dict[str, str]):

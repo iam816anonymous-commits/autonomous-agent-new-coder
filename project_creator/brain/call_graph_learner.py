@@ -24,24 +24,52 @@ class CallGraphLearner:
                 tree = ast.parse(f.read())
 
             rel_path = os.path.relpath(file_path, self.project_root)
+            current_container = "global"
 
             for node in ast.walk(tree):
-                # Class Analysis
-                if isinstance(node, ast.ClassDef):
+                # Context tracking
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    current_container = f"{rel_path}:{node.name}"
+                elif isinstance(node, ast.ClassDef):
+                    current_container = f"{rel_path}:{node.name}"
                     bases = [b.id for b in node.bases if isinstance(b, ast.Name)]
-                    self.class_graph[f"{rel_path}:{node.name}"] = bases
+                    self.class_graph[current_container] = bases
 
                 # Call Analysis
                 if isinstance(node, ast.Call):
+                    callee = None
                     if isinstance(node.func, ast.Name):
                         callee = node.func.id
-                        # This is a simplification; real call graphs need scope tracking
-                        caller = "global"
-                        if callee not in self.call_graph: self.call_graph[callee] = set()
-                        # We'd ideally track which function we are currently inside
+                    elif isinstance(node.func, ast.Attribute):
+                        callee = node.func.attr
+
+                    if callee:
+                        if callee not in self.call_graph:
+                            self.call_graph[callee] = set()
+                        self.call_graph[callee].add(current_container)
         except: pass
 
     def get_impacted_files(self, modified_file: str) -> List[str]:
-        """Heuristic to find files that might break if modified_file changes."""
-        # This implementation would search the call/import graph
-        return []
+        """Identifies files that call functions defined in the modified_file."""
+        impacted = set()
+
+        # 1. Re-analyze modified file to find what it defines
+        defined_funcs = set()
+        try:
+            full_path = os.path.join(self.project_root, modified_file)
+            with open(full_path, 'r', encoding='utf-8') as f:
+                tree = ast.parse(f.read())
+            for node in ast.walk(tree):
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                    defined_funcs.add(node.name)
+        except: return []
+
+        # 2. Find who calls those functions
+        for func in defined_funcs:
+            callers = self.call_graph.get(func, set())
+            for caller in callers:
+                file_part = caller.split(':')[0]
+                if file_part != modified_file:
+                    impacted.add(file_part)
+
+        return list(impacted)

@@ -47,16 +47,23 @@ def main():
         print("❌ Architecture failure.")
         return
 
-    print(f"\n🏗️  Blueprint ready. Starting generation...")
+    print(f"\n🏗️  Blueprint ready. Starting hierarchical generation...")
 
-    for f in blueprint['files']:
-        res = orch.generate_and_validate(f)
+    stages = blueprint.get('stages', [])
+    if not stages:
+        # Fallback for old flat blueprints
+        stages = [{"name": "Single Phase", "files": blueprint.get('files', [])}]
 
-        print(f"\n--- Review: {f['path']} ---")
-        print(res['content'][:400] + "...")
-        if input(f"\nApprove and Write? [y/N]: ").lower() == 'y':
-            orch.apply(f['path'], res['content'])
-            print(f"✅ {f['path']} applied.")
+    for stage in stages:
+        print(f"\n🚀 STAGE: {stage['name']}")
+        for f in stage['files']:
+            res = orch.generate_and_validate(f)
+
+            print(f"\n--- Review: {f['path']} ---")
+            print(res['content'][:400] + "...")
+            if input(f"\nApprove and Write? [y/N]: ").lower() == 'y':
+                orch.apply(f['path'], res['content'])
+                print(f"✅ {f['path']} applied.")
 
     orch.manifest.update_field("status", "complete")
     print("\n🚀 Project generated successfully!")

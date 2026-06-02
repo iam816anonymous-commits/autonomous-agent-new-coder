@@ -7,8 +7,10 @@ Mini Jules is a high-performance autonomous engineering agent designed to archit
 - **Engineering Brain**: Strategic reasoning, architectural memory, and cross-repo pattern extraction.
 - **Autonomous Multi-File Generation**: From single prompt to logically grouped modules using topological dependency sorting.
 - **Decomposed SDLC Loop**: High-performance lifecycle orchestrated by specialized coordinators (Generation, Execution, Repair).
+- **Hierarchical Planning**: Architects projects in logical stages (Core -> Logic -> API) to scale to 100+ files.
+- **AST Impact Analysis**: Maps cross-file dependencies to identify regression risks before applying patches.
 - **Security Constitution**: Hardened prompts and physical content validation that proactively block vulnerabilities.
-- **Sandbox Dry-run**: Automatic linting and validation of generated code in isolated temporary directories.
+- **Venv Sandbox**: Automatic linting and testing in isolated virtual environments to prevent host pollution.
 - **Production Audit Logging**: Every command executed by the agent is recorded in `agent_audit.log`.
 - **VS Code Native**: Sidebar GUI, CodeLens inline actions, and native diff-based patch reviews.
 - **Multi-Provider Routing**: Resilient fallback chain with exponential backoff retries.

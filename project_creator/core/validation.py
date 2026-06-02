@@ -63,6 +63,10 @@ class ValidationManager:
 
             orig_root = self.tools.project_root
             self.tools.project_root = sandbox_root
+
+            # Use isolated venv for validation
+            self.tools.ensure_venv()
+
             lint_res = self.tools.run_lint(path)
             self.tools.project_root = orig_root
 

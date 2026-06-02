@@ -38,8 +38,17 @@ class ToolExecutor:
                  return {"error": f"Constitution Violation: Forbidden pattern detected."}
 
         try:
-            # 3. Clean environment and non-shell execution
+            # 3. Clean environment and non-shell execution (with venv support)
             logging.info(f"EXECUTING: {command} in {self.project_root}")
+
+            env = {"PYTHONPATH": os.environ.get("PYTHONPATH", "")}
+            venv_bin = os.path.join(self.project_root, "venv", "bin")
+            if os.path.exists(venv_bin):
+                env["PATH"] = venv_bin + os.pathsep + os.environ.get("PATH", "")
+                # Point to venv python if running python scripts
+                if cmd_args[0] == "python3":
+                    cmd_args[0] = os.path.join(venv_bin, "python3")
+
             result = subprocess.run(
                 cmd_args,
                 cwd=self.project_root,
@@ -47,7 +56,7 @@ class ToolExecutor:
                 text=True,
                 timeout=30,
                 shell=False,
-                env={"PYTHONPATH": os.environ.get("PYTHONPATH", "")} # Minimal env
+                env=env
             )
             return {
                 "stdout": result.stdout,
@@ -56,6 +65,17 @@ class ToolExecutor:
             }
         except Exception as e:
             return {"error": str(e)}
+
+    def ensure_venv(self):
+        """Creates a virtual environment if it doesn't exist."""
+        venv_path = os.path.join(self.project_root, "venv")
+        if not os.path.exists(venv_path):
+            print(f"📦 Creating Sandbox Venv in {self.project_root}...")
+            subprocess.run(["python3", "-m", "venv", venv_path], check=True)
+            # Install core validation tools into venv
+            # In real scenario we might want to install requirements.txt too
+            bin_path = os.path.join(venv_path, "bin", "pip")
+            subprocess.run([bin_path, "install", "ruff", "black", "pytest"], capture_output=True)
 
     def run_lint(self, p): return self.execute(f"ruff check {p}")
     def run_format(self, p): return self.execute(f"black {p}")

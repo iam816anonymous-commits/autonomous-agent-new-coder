@@ -7,7 +7,7 @@ class CoderAgent:
         self.router = router
         self.retriever = Retriever(DB_PATH)
 
-    def generate_file(self, file_path, description, blueprint, context):
+    def generate_file(self, file_path, description, blueprint, context, strategy_doc=None):
         system_prompt = """
         You are an elite senior software engineer with a focus on CYBERSECURITY.
 
@@ -26,7 +26,9 @@ class CoderAgent:
         """
 
         context_str = "\n".join([f"File: {p}\nContent:\n{c}\n---" for p, c in context.items()])
-        prompt = f"Blueprint: {json.dumps(blueprint)}\nTarget: {file_path}\nGoal: {description}\nContext:\n{context_str}"
+
+        strategy_context = f"STRATEGY:\n{strategy_doc}\n\n" if strategy_doc else ""
+        prompt = f"{strategy_context}Blueprint: {json.dumps(blueprint)}\nTarget: {file_path}\nGoal: {description}\nContext:\n{context_str}"
 
         # Augment with learned style and path-aware context
         prompt = self.retriever.augment_prompt(prompt, task_type="coding", path=file_path)

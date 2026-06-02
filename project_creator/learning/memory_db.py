@@ -1,15 +1,16 @@
 import sqlite3
 import os
 import json
+from project_creator.core.database.db_manager import DatabaseManager
 
 class CodingMemory:
     def __init__(self, db_path):
         self.db_path = db_path
+        self.db = DatabaseManager(db_path)
         self._init_db()
 
     def _init_db(self):
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
+        with self.db.transaction() as cursor:
 
             # Night Learning stats
             cursor.execute('''
@@ -86,23 +87,16 @@ class CodingMemory:
             conn.commit()
 
     def log_night_activity(self, tasks, patterns, quota, growth):
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                INSERT INTO night_learning_stats (tasks_completed, patterns_learned, quota_used, memory_growth_kb)
-                VALUES (?, ?, ?, ?)
-            ''', (tasks, patterns, quota, growth))
-            conn.commit()
+        self.db.execute_commit('''
+            INSERT INTO night_learning_stats (tasks_completed, patterns_learned, quota_used, memory_growth_kb)
+            VALUES (?, ?, ?, ?)
+        ''', (tasks, patterns, quota, growth))
 
     def add_anti_pattern(self, content, reason, severity="LOW"):
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute('INSERT INTO anti_patterns (content, reason, severity) VALUES (?, ?, ?)', (content, reason, severity))
-            conn.commit()
+        self.db.execute_commit('INSERT INTO anti_patterns (content, reason, severity) VALUES (?, ?, ?)', (content, reason, severity))
 
     def log_git_commit(self, commit_data):
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
+        with self.db.transaction() as cursor:
             cursor.execute('''
                 INSERT OR IGNORE INTO git_commits (hash, author, message, timestamp, repo_path)
                 VALUES (?, ?, ?, ?, ?)
@@ -113,43 +107,29 @@ class CodingMemory:
                     INSERT INTO commit_files (commit_hash, file_path, change_type, content_after)
                     VALUES (?, ?, ?, ?)
                 ''', (commit_data['hash'], file_data['path'], file_data['type'], file_data.get('content')))
-            conn.commit()
 
     def log_failure(self, f_type, path, error, context=""):
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                INSERT INTO failures (type, path, error_msg, context_snippet)
-                VALUES (?, ?, ?, ?)
-            ''', (f_type, path, error, context))
-            conn.commit()
+        self.db.execute_commit('''
+            INSERT INTO failures (type, path, error_msg, context_snippet)
+            VALUES (?, ?, ?, ?)
+        ''', (f_type, path, error, context))
 
     # Restoration of necessary v13 methods
     def learn_pattern(self, p_type, content):
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
+        with self.db.transaction() as cursor:
             cursor.execute('SELECT id, frequency FROM patterns WHERE pattern_type = ? AND content = ?', (p_type, content))
             row = cursor.fetchone()
             if row: cursor.execute('UPDATE patterns SET frequency = frequency + 1 WHERE id = ?', (row[0],))
             else: cursor.execute('INSERT INTO patterns (pattern_type, content) VALUES (?, ?)', (p_type, content))
-            conn.commit()
 
     def add_snippet(self, path, content, status):
         # Ensure schema exists before write
         self._init_db()
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute('INSERT INTO snippets (file_path, content, status) VALUES (?, ?, ?)', (path, content, status))
-            conn.commit()
+        self.db.execute_commit('INSERT INTO snippets (file_path, content, status) VALUES (?, ?, ?)', (path, content, status))
 
     def get_top_patterns(self, p_type, limit=10):
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute('SELECT content FROM patterns WHERE pattern_type = ? ORDER BY frequency DESC LIMIT ?', (p_type, limit))
-            return [r[0] for r in cursor.fetchall()]
+        rows = self.db.execute_query('SELECT content FROM patterns WHERE pattern_type = ? ORDER BY frequency DESC LIMIT ?', (p_type, limit))
+        return [r[0] for r in rows]
 
     def add_heuristic(self, topic, text):
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute('INSERT INTO heuristics (topic, heuristic) VALUES (?, ?)', (topic, text))
-            conn.commit()
+        self.db.execute_commit('INSERT INTO heuristics (topic, heuristic) VALUES (?, ?)', (topic, text))

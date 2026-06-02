@@ -8,10 +8,11 @@ class ValidationManager:
     """
     Handles the Sandbox Dry-run and Critique/Repair loop.
     """
-    def __init__(self, agents, tools):
+    def __init__(self, agents, tools, repair_strategist=None):
         self.critique = agents['critique']
         self.repair = agents['repair']
         self.tools = tools
+        self.repair_strategist = repair_strategist
 
     def run_dry_run(self, path: str, content: str, blueprint: Dict, generated_files: Dict, strategy_doc: str = None) -> Dict[str, Any]:
         """
@@ -41,7 +42,10 @@ class ValidationManager:
             combined = audit.get('issues', []) + physical_issues
             print(f"🛠️  Repairing {path} for: {combined}")
 
-            patch = self.repair.propose_patch(path, current_content, combined, blueprint, generated_files, extra_context=strategy_doc)
+            if self.repair_strategist:
+                patch = self.repair_strategist.formulate_repair(path, current_content, combined, blueprint, generated_files, extra_context=strategy_doc)
+            else:
+                patch = self.repair.propose_patch(path, current_content, combined, blueprint, generated_files, extra_context=strategy_doc)
             if patch and patch.get('new_content'):
                 current_content = patch['new_content']
             else:

@@ -4,9 +4,10 @@ Mini Jules is a high-performance autonomous engineering agent designed to archit
 
 ## 🚀 Key Features
 
-- **Autonomous Multi-File Generation**: From single prompt to logically grouped modules.
-- **Strict SDLC Loop**: Immutable lifecycle (Plan → Generate → Sandbox Dry-run → Critique → Repair → Approval → Apply).
-- **Security Constitution**: Hardened prompts that proactively block common vulnerabilities (SQLi, XSS, hardcoded secrets).
+- **Engineering Brain**: Strategic reasoning, architectural memory, and cross-repo pattern extraction.
+- **Autonomous Multi-File Generation**: From single prompt to logically grouped modules using topological dependency sorting.
+- **Decomposed SDLC Loop**: High-performance lifecycle orchestrated by specialized coordinators (Generation, Execution, Repair).
+- **Security Constitution**: Hardened prompts and physical content validation that proactively block vulnerabilities.
 - **Sandbox Dry-run**: Automatic linting and validation of generated code in isolated temporary directories.
 - **Production Audit Logging**: Every command executed by the agent is recorded in `agent_audit.log`.
 - **VS Code Native**: Sidebar GUI, CodeLens inline actions, and native diff-based patch reviews.

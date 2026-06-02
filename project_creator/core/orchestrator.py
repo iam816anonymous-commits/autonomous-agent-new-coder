@@ -11,23 +11,27 @@ from project_creator.brain.dependency_analyzer import DependencyAnalyzer
 from project_creator.core.test_executor import TestExecutor
 from project_creator.core.error_classifier import ErrorClassifier
 from project_creator.core.validation import ValidationManager
+from project_creator.core.repair_strategist import RepairStrategist
+from project_creator.core.generation_coordinator import GenerationCoordinator
+from project_creator.core.execution_coordinator import ExecutionCoordinator
 
 class Orchestrator:
     def __init__(self, router, agents, storage, tools, manifest, session):
         self.router = router
         self.planner = agents['planner']
         self.coder = agents['coder']
-        self.critique = agents['critique']
-        self.repair = agents['repair']
 
-        # Managers
-        self.validation_manager = ValidationManager(agents, tools)
+        # Core Components
+        self.error_classifier = ErrorClassifier()
+        self.test_executor = TestExecutor(storage.project_root)
+        self.repair_strategist = RepairStrategist(agents['repair'], self.error_classifier)
+        self.validation_manager = ValidationManager(agents, tools, self.repair_strategist)
+        self.gen_coordinator = GenerationCoordinator(self.coder, self.validation_manager)
+        self.exec_coordinator = ExecutionCoordinator(tools, self.test_executor)
 
-        # New Agents
+        # Specialist Agents
         self.dialogue = DialogueAgent(router)
         self.dependency_analyzer = DependencyAnalyzer()
-        self.test_executor = TestExecutor(storage.project_root)
-        self.error_classifier = ErrorClassifier()
 
         self.storage = storage
         self.tools = tools
@@ -99,15 +103,8 @@ class Orchestrator:
         return self.blueprint
 
     def generate_and_validate(self, file_meta: Dict[str, str]):
-        path = file_meta['path']
-        print(f"📝 Generating: {path}")
-
         strategy_doc = getattr(self, 'strategy_doc', None)
-        content = self.coder.generate_file(path, file_meta['description'], self.blueprint, self.generated_files, strategy_doc=strategy_doc)
-
-        # Devolved Validation Loop
-        res = self.validation_manager.run_dry_run(path, content, self.blueprint, self.generated_files, strategy_doc=strategy_doc)
-        return res
+        return self.gen_coordinator.generate_project_file(file_meta, self.blueprint, self.generated_files, strategy_doc=strategy_doc)
 
     def apply(self, path: str, content: str):
         if self.storage.write_file(path, content, interactive=False):

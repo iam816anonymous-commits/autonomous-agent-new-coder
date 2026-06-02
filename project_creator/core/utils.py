@@ -35,3 +35,24 @@ def extract_json(text: str):
         return json.loads(text.strip())
     except:
         return None
+
+def sanitize_path(project_root: str, path: str) -> str:
+    """Ensures path is safe and within project root."""
+    import os
+    full_path = os.path.realpath(os.path.abspath(os.path.join(project_root, path)))
+    if not full_path.startswith(os.path.realpath(project_root)):
+        raise ValueError(f"Security Rejection: Path {path} is outside root {project_root}")
+    return full_path
+
+def is_safe_content(content: str) -> bool:
+    """Checks for extremely dangerous patterns in generated code."""
+    forbidden = [
+        r'rm\s+-rf\s+/',
+        r'chmod\s+777',
+        r'eval\(input\(',
+        r'os\.system\('
+    ]
+    for pattern in forbidden:
+        if re.search(pattern, content, re.IGNORECASE):
+            return False
+    return True

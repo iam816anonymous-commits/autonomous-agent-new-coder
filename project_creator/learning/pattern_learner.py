@@ -12,22 +12,24 @@ class PatternLearner:
     def _setup_subscriptions(self):
         bus.subscribe("PATCH_ACCEPTED", self.learn_from_patch)
         bus.subscribe("FILE_OPEN", self.learn_from_file)
+        self.current_source = "SELF"
 
     def learn_from_patch(self, data):
         # Learn from code that was actually accepted
         content = data.get('content', '')
-        self._extract_patterns(content)
-        self.memory.add_snippet(data.get('path'), content, 'ACCEPTED')
+        self._extract_patterns(content, source_type="USER")
+        self.memory.add_snippet(data.get('path'), content, 'ACCEPTED', source_type="USER")
 
     def learn_from_file(self, data):
         # Learn from existing codebase style
         content = data.get('content', '')
         path = data.get('path', '')
-        self._extract_patterns(content)
+        source = getattr(self, 'current_source', 'SELF')
+        self._extract_patterns(content, source_type=source)
         # Also index existing files semantically
         self.vector_store.add(content, {"path": path, "type": "existing_code"})
 
-    def _extract_patterns(self, content):
+    def _extract_patterns(self, content, source_type="SELF"):
         if not content: return
 
         # Apply Constitution Scrubbing before learning
@@ -39,22 +41,22 @@ class PatternLearner:
             for node in ast.walk(tree):
                 if isinstance(node, ast.Import):
                     for alias in node.names:
-                        self.memory.learn_pattern('import', alias.name)
+                        self.memory.learn_pattern('import', alias.name, source_type=source_type)
                 elif isinstance(node, ast.ImportFrom):
-                    self.memory.learn_pattern('import', node.module)
+                    self.memory.learn_pattern('import', node.module, source_type=source_type)
         except: pass
 
         # 2. Extract specific API patterns (e.g. FastAPI APIRouter)
         if "APIRouter()" in content:
-            self.memory.learn_pattern('api_style', 'fastapi_router')
+            self.memory.learn_pattern('api_style', 'fastapi_router', source_type=source_type)
         if "app = FastAPI()" in content:
-            self.memory.learn_pattern('api_style', 'fastapi_app')
+            self.memory.learn_pattern('api_style', 'fastapi_app', source_type=source_type)
 
         # 3. Naming Conventions (Heuristic)
         if re.search(r'def [a-z_]+', content):
-            self.memory.learn_pattern('naming', 'snake_case')
+            self.memory.learn_pattern('naming', 'snake_case', source_type=source_type)
         elif re.search(r'def [a-z][A-Z]', content):
-            self.memory.learn_pattern('naming', 'camelCase')
+            self.memory.learn_pattern('naming', 'camelCase', source_type=source_type)
 
         # 4. Project Idioms (AST-based)
         try:
@@ -78,11 +80,11 @@ class PatternLearner:
 
                         if parts:
                             idiom = ".".join(reversed(parts))
-                            self.memory.learn_pattern('idiom', f"decorator:{idiom}")
+                            self.memory.learn_pattern('idiom', f"decorator:{idiom}", source_type=source_type)
 
                 # Detect Base Classes
                 if isinstance(node, ast.ClassDef):
                     for base in node.bases:
                         if isinstance(base, ast.Name):
-                            self.memory.learn_pattern('idiom', f"base_class:{base.id}")
+                            self.memory.learn_pattern('idiom', f"base_class:{base.id}", source_type=source_type)
         except: pass

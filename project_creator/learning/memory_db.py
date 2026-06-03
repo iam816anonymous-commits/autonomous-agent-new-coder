@@ -70,8 +70,8 @@ class CodingMemory:
             ''')
 
             # (Other v13 tables re-included here)
-            cursor.execute('CREATE TABLE IF NOT EXISTS patterns (id INTEGER PRIMARY KEY AUTOINCREMENT, pattern_type TEXT, content TEXT, frequency INTEGER DEFAULT 1, preference_score REAL DEFAULT 1.0, last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP)')
-            cursor.execute('CREATE TABLE IF NOT EXISTS snippets (id INTEGER PRIMARY KEY AUTOINCREMENT, file_path TEXT, content TEXT, tags TEXT, status TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)')
+            cursor.execute('CREATE TABLE IF NOT EXISTS patterns (id INTEGER PRIMARY KEY AUTOINCREMENT, pattern_type TEXT, content TEXT, frequency INTEGER DEFAULT 1, preference_score REAL DEFAULT 1.0, last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP, source_type TEXT DEFAULT "SELF")')
+            cursor.execute('CREATE TABLE IF NOT EXISTS snippets (id INTEGER PRIMARY KEY AUTOINCREMENT, file_path TEXT, content TEXT, tags TEXT, status TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, source_type TEXT DEFAULT "SELF")')
             cursor.execute('CREATE TABLE IF NOT EXISTS user_style (key TEXT PRIMARY KEY, value TEXT)')
 
             # Heuristics learned from reflection
@@ -80,7 +80,8 @@ class CodingMemory:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     topic TEXT,
                     heuristic TEXT,
-                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    source_type TEXT DEFAULT "SELF"
                 )
             ''')
 
@@ -115,21 +116,22 @@ class CodingMemory:
         ''', (f_type, path, error, context))
 
     # Restoration of necessary v13 methods
-    def learn_pattern(self, p_type, content):
+    def learn_pattern(self, p_type, content, source_type="SELF"):
         with self.db.transaction() as cursor:
-            cursor.execute('SELECT id, frequency FROM patterns WHERE pattern_type = ? AND content = ?', (p_type, content))
+            cursor.execute('SELECT id, frequency FROM patterns WHERE pattern_type = ? AND content = ? AND source_type = ?', (p_type, content, source_type))
             row = cursor.fetchone()
             if row: cursor.execute('UPDATE patterns SET frequency = frequency + 1 WHERE id = ?', (row[0],))
-            else: cursor.execute('INSERT INTO patterns (pattern_type, content) VALUES (?, ?)', (p_type, content))
+            else: cursor.execute('INSERT INTO patterns (pattern_type, content, source_type) VALUES (?, ?, ?)', (p_type, content, source_type))
 
-    def add_snippet(self, path, content, status):
+    def add_snippet(self, path, content, status, source_type="SELF"):
         # Ensure schema exists before write
         self._init_db()
-        self.db.execute_commit('INSERT INTO snippets (file_path, content, status) VALUES (?, ?, ?)', (path, content, status))
+        self.db.execute_commit('INSERT INTO snippets (file_path, content, status, source_type) VALUES (?, ?, ?, ?)', (path, content, status, source_type))
 
     def get_top_patterns(self, p_type, limit=10):
-        rows = self.db.execute_query('SELECT content FROM patterns WHERE pattern_type = ? ORDER BY frequency DESC LIMIT ?', (p_type, limit))
-        return [r[0] for r in rows]
+        # We now query content and source_type for weighting
+        rows = self.db.execute_query('SELECT content, source_type, frequency FROM patterns WHERE pattern_type = ? ORDER BY frequency DESC LIMIT ?', (p_type, limit))
+        return rows
 
-    def add_heuristic(self, topic, text):
-        self.db.execute_commit('INSERT INTO heuristics (topic, heuristic) VALUES (?, ?)', (topic, text))
+    def add_heuristic(self, topic, text, source_type="SELF"):
+        self.db.execute_commit('INSERT INTO heuristics (topic, heuristic, source_type) VALUES (?, ?, ?)', (topic, text, source_type))

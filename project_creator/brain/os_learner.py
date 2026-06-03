@@ -7,21 +7,28 @@ class OSLearner:
     def __init__(self, brain: RepositoryBrain):
         self.brain = brain
 
-    def learn_from_github(self, repo_url):
+    def learn_from_github(self, repo_url, source_type="EXTERNAL"):
         repo_name = repo_url.split("/")[-1].replace(".git", "")
         temp_path = os.path.join("temp_learn", repo_name)
 
-        print(f"🌍 Brain: Ingesting Open Source {repo_url}")
+        print(f"🌍 Brain: Ingesting Open Source {repo_url} as {source_type}")
 
         try:
             if os.path.exists(temp_path): shutil.rmtree(temp_path)
             # Clone with depth 1 to save time
             subprocess.run(["git", "clone", "--depth", "1", repo_url, temp_path], check=True)
 
-            # Extract knowledge
+            # 1. Update Ingestion Context for Source Tracking
+            from project_creator.learning import pattern_learner
+            orig_source = getattr(pattern_learner, 'current_source', 'SELF')
+            pattern_learner.current_source = source_type
+
+            # 2. Extract knowledge
             knowledge = self.brain.ingest_repository(temp_path)
 
-            # Lessons learned
+            # 3. Restore original source
+            pattern_learner.current_source = orig_source
+
             return knowledge
 
         except Exception as e:

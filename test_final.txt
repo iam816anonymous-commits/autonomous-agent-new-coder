@@ -13,7 +13,7 @@ project_creator/learning/__init__.py:15: in <module>
              ^^^^^^^^^^^^^^^^^^^^^
 project_creator/learning/memory_db.py:10: in __init__
     self._init_db()
-project_creator/learning/memory_db.py:87: in _init_db
+project_creator/learning/memory_db.py:88: in _init_db
     conn.commit()
     ^^^^
 E   NameError: name 'conn' is not defined
@@ -29,7 +29,7 @@ project_creator/learning/__init__.py:15: in <module>
              ^^^^^^^^^^^^^^^^^^^^^
 project_creator/learning/memory_db.py:10: in __init__
     self._init_db()
-project_creator/learning/memory_db.py:87: in _init_db
+project_creator/learning/memory_db.py:88: in _init_db
     conn.commit()
     ^^^^
 E   NameError: name 'conn' is not defined
@@ -43,7 +43,7 @@ project_creator/learning/__init__.py:15: in <module>
              ^^^^^^^^^^^^^^^^^^^^^
 project_creator/learning/memory_db.py:10: in __init__
     self._init_db()
-project_creator/learning/memory_db.py:87: in _init_db
+project_creator/learning/memory_db.py:88: in _init_db
     conn.commit()
     ^^^^
 E   NameError: name 'conn' is not defined
@@ -52,4 +52,4 @@ ERROR tests/test_learning_engine.py - NameError: name 'conn' is not defined
 ERROR test_server_v14.py - NameError: name 'conn' is not defined
 ERROR tests/test_orchestrator_e2e.py - NameError: name 'conn' is not defined
 !!!!!!!!!!!!!!!!!!! Interrupted: 3 errors during collection !!!!!!!!!!!!!!!!!!!!
-============================== 3 errors in 17.25s ==============================
+============================== 3 errors in 10.89s ==============================

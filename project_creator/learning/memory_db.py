@@ -85,7 +85,7 @@ class CodingMemory:
                 )
             ''')
 
-            conn.commit()
+            pass
 
     def log_night_activity(self, tasks, patterns, quota, growth):
         self.db.execute_commit('''
@@ -124,8 +124,6 @@ class CodingMemory:
             else: cursor.execute('INSERT INTO patterns (pattern_type, content, source_type) VALUES (?, ?, ?)', (p_type, content, source_type))
 
     def add_snippet(self, path, content, status, source_type="SELF"):
-        # Ensure schema exists before write
-        self._init_db()
         self.db.execute_commit('INSERT INTO snippets (file_path, content, status, source_type) VALUES (?, ?, ?, ?)', (path, content, status, source_type))
 
     def get_top_patterns(self, p_type, limit=10):

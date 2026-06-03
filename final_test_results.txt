@@ -1,0 +1,58 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.13, pytest-9.0.3, pluggy-1.6.0
+rootdir: /app
+plugins: anyio-4.13.0
+collected 4 items
+
+tests/test_learning_engine.py ..                                         [ 50%]
+test_server_v14.py .                                                     [ 75%]
+tests/test_orchestrator_e2e.py F                                         [100%]
+
+=================================== FAILURES ===================================
+_____________________ TestOrchestratorE2E.test_apply_logic _____________________
+
+self = <test_orchestrator_e2e.TestOrchestratorE2E testMethod=test_apply_logic>
+
+    def test_apply_logic(self):
+        # Mock agents
+        agents = {
+            'planner': MagicMock(),
+            'coder': MagicMock(),
+            'critique': MagicMock(),
+            'repair': MagicMock()
+        }
+        orch = Orchestrator(None, agents, self.storage, None, MagicMock(), MagicMock())
+
+        path = "test.py"
+        content = "print('hello')"
+>       success = orch.apply(path, content)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_orchestrator_e2e.py:26:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+project_creator/core/orchestrator.py:120: in apply
+    collector.collect("PATCH_ACCEPTED", {"path": path, "content": content})
+project_creator/learning/collector.py:35: in collect
+    bus.publish(event_type, data)
+project_creator/learning/event_bus.py:15: in publish
+    callback(data)
+project_creator/learning/pattern_learner.py:21: in learn_from_patch
+    self.memory.add_snippet(data.get('path'), content, 'ACCEPTED', source_type="USER")
+project_creator/learning/memory_db.py:127: in add_snippet
+    self.db.execute_commit('INSERT INTO snippets (file_path, content, status, source_type) VALUES (?, ?, ?, ?)', (path, content, status, source_type))
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <project_creator.core.database.db_manager.DatabaseManager object at 0x7fd39cc3b7a0>
+query = 'INSERT INTO snippets (file_path, content, status, source_type) VALUES (?, ?, ?, ?)'
+params = ('test.py', "print('hello')", 'ACCEPTED', 'USER')
+
+    def execute_commit(self, query, params=()):
+        """Executes a commit query."""
+        with self.transaction() as cursor:
+>           cursor.execute(query, params)
+E           sqlite3.OperationalError: table snippets has no column named source_type
+
+project_creator/core/database/db_manager.py:44: OperationalError
+=========================== short test summary info ============================
+FAILED tests/test_orchestrator_e2e.py::TestOrchestratorE2E::test_apply_logic
+========================= 1 failed, 3 passed in 15.23s =========================

@@ -29,7 +29,7 @@ class EngineeringBrain:
         }
 
         strategy_doc = self.strategy_builder.generate_strategy_document(goal, context)
-        return strategy_doc
+        return strategy_doc, context
 
     def learn_from_completed_task(self, session_data):
         """

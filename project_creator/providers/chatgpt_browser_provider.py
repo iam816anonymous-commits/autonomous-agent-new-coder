@@ -40,4 +40,17 @@ class ChatGPTBrowserProvider:
 
     def generate(self, prompt, system_prompt=None):
         full_prompt = f"{system_prompt}\n\n{prompt}" if system_prompt else prompt
-        return asyncio.run(self.generate_async(full_prompt))
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        if loop.is_running():
+            # If we are in FastAPI, we should ideally use async all the way up,
+            # but as a quick fix for the orchestrator which is currently sync:
+            import nest_asyncio
+            nest_asyncio.apply()
+            return loop.run_until_complete(self.generate_async(full_prompt))
+        else:
+            return loop.run_until_complete(self.generate_async(full_prompt))

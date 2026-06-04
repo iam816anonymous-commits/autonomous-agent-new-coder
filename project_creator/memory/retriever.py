@@ -26,6 +26,8 @@ class Retriever:
         if idioms:
             context_lines.append(f"- Common Idioms: {', '.join(idioms)}")
 
+        return "\n".join(context_lines) if len(context_lines) > 1 else ""
+
     def _get_weighted_patterns(self, p_type, limit=5):
         raw_rows = self.memory.get_top_patterns(p_type, limit=limit * 2)
         if not raw_rows: return []
@@ -43,8 +45,6 @@ class Retriever:
         # Rank by score and return top 'limit'
         scored.sort(key=lambda x: x[1], reverse=True)
         return [s[0] for s in scored[:limit]]
-
-        return "\n".join(context_lines) if len(context_lines) > 1 else ""
 
     def augment_prompt(self, base_prompt, task_type="coding", path=None):
         learned_context = self.retrieve_context(task_type, query=base_prompt, path=path)

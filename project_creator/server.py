@@ -84,6 +84,12 @@ async def approve(path: str = Body(...), content: str = Body(...)):
         return {"status": "ok"}
     return {"status": "error"}
 
+@app.post("/verify")
+async def verify():
+    if not state.orch: raise HTTPException(400, "Not initialized")
+    success = state.orch.run_tests_with_repair()
+    return {"status": "verified" if success else "failed", "success": success}
+
 @app.get("/manifest")
 async def get_manifest():
     if not state.orch: return {}

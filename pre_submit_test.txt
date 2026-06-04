@@ -1,0 +1,12 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.13, pytest-9.0.3, pluggy-1.6.0 -- /home/jules/.pyenv/versions/3.12.13/bin/python3
+cachedir: .pytest_cache
+rootdir: /app
+plugins: anyio-4.13.0
+collecting ... collected 3 items
+
+tests/test_learning_engine.py::test_repo_learner PASSED                  [ 33%]
+tests/test_learning_engine.py::test_failure_logging PASSED               [ 66%]
+tests/test_orchestrator_e2e.py::TestOrchestratorE2E::test_apply_logic PASSED [100%]
+
+============================== 3 passed in 10.04s ==============================

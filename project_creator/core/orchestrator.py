@@ -70,7 +70,9 @@ class Orchestrator:
         return self.dependency_analyzer.analyze_project(self.blueprint['files'] if self.blueprint else [])
 
     def run_tests_with_repair(self, max_repair_cycles=3):
-        print("🧪 Starting Test-Driven Repair Cycle...")
+        print("🧪 Starting Verified Sandbox Test-Repair Cycle...")
+        strategy_doc = getattr(self, 'strategy_doc', None)
+
         for cycle in range(max_repair_cycles):
             res = self.test_executor.run_tests()
             if res.get('returncode') == 0:
@@ -78,13 +80,32 @@ class Orchestrator:
                 return True
 
             context = self.test_executor.generate_repair_context(res)
-            cat, sev = self.error_classifier.classify_error(context['stderr'])
-            plan = self.error_classifier.get_repair_plan(cat)
+            print(f"❌ Test Failed (Cycle {cycle+1}). Type: {context['failure_type']}")
 
-            print(f"❌ Test Failed (Cycle {cycle+1}). Category: {cat.value}, Severity: {sev.name}")
-            print(f"💡 Repair Plan: {plan}")
+            # Formulate repair for the project based on test failure
+            repair_tasks = self.repair_strategist.formulate_repair(
+                "PROJECT_TESTS",
+                "", # No single file content, repairing project
+                [f"Test Failure: {context['stderr']}"],
+                self.blueprint,
+                self.generated_files,
+                extra_context=strategy_doc
+            )
 
-            # Real repair would loop through files and patch
+            if repair_tasks and repair_tasks.get('new_content'):
+                # In a real multi-file repair, the strategist might return multiple patches.
+                # Here we assume it targets a specific file identified in the repair task.
+                target_path = repair_tasks.get('path')
+                if target_path:
+                    print(f"🛠️  Applying repair to {target_path}...")
+                    self.apply(target_path, repair_tasks['new_content'])
+                else:
+                    print("⚠️  Repair proposed but no target file specified.")
+                    break
+            else:
+                print("⚠️  No repair plan could be formulated.")
+                break
+
         return False
 
     def plan(self, goal: str):

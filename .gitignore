@@ -15,3 +15,10 @@ test_e2e_project/
 enhanced_demo/
 jules_vman_*
 jules_sandbox_*
+__pycache__/
+*.pyc
+.pytest_cache/
+*.log
+node_modules/
+reports/*.md
+reports/*.json

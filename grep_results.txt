@@ -1,2 +1,0 @@
-project_creator/core/database/db_manager.py:                conn.commit()
-project_creator/core/database/db_manager.py:            conn.close()

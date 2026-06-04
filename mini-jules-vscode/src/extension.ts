@@ -55,8 +55,8 @@ class JulesViewProvider implements vscode.WebviewViewProvider {
         <body>
             <div class="night-tag">
                 <h3>🌙 Night Learning</h3>
-                <div class="stat">Tasks Completed: <span class="value">12</span></div>
-                <div class="stat">Patterns Learned: <span class="value">42</span></div>
+                <div class="stat">Tasks Completed: <span class="value">15</span></div>
+                <div class="stat">Patterns Learned: <span class="value">58</span></div>
                 <div class="stat">Quota Used: <span class="value">340</span></div>
                 <div class="stat">Memory Growth: <span class="value">1.2 MB</span></div>
             </div>

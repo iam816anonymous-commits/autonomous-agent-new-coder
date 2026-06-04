@@ -1,13 +1,8 @@
-from project_creator.learning.memory_db import CodingMemory
-from project_creator.memory.vector_store import VectorStore
-import os
+from .base_memory import BaseBrainMemory
 
-class RepairMemory:
+class RepairMemory(BaseBrainMemory):
     def __init__(self, db_path):
-        self.sql_memory = CodingMemory(db_path)
-        # Brain-specific vector index
-        brain_dir = os.path.dirname(db_path)
-        self.vector_store = VectorStore(os.path.join(brain_dir, "brain_repair.idx"))
+        super().__init__(db_path, index_name="repair")
 
     def store_repair(self, error, traceback, root_cause, repair, success_rate=1.0):
         """Stores a validated repair pattern."""
@@ -26,4 +21,4 @@ class RepairMemory:
         self.sql_memory.log_failure("REPAIR_MEMORY_UPGRADE", "brain", error, repair)
 
     def retrieve_repairs(self, error_msg, top_k=3):
-        return self.vector_store.search(error_msg, top_k=top_k)
+        return self.search(error_msg, top_k=top_k)

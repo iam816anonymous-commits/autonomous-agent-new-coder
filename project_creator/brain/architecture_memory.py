@@ -1,10 +1,8 @@
-from project_creator.memory.vector_store import VectorStore
-import os
+from .base_memory import BaseBrainMemory
 
-class ArchitectureMemory:
+class ArchitectureMemory(BaseBrainMemory):
     def __init__(self, db_path):
-        brain_dir = os.path.dirname(db_path)
-        self.vector_store = VectorStore(os.path.join(brain_dir, "brain_architecture.idx"))
+        super().__init__(db_path, index_name="architecture")
 
     def store_architecture(self, project_type, architecture, dependencies, success_score=1.0):
         entry = {
@@ -17,4 +15,4 @@ class ArchitectureMemory:
         self.vector_store.add(text_context, entry)
 
     def retrieve_similar(self, goal, top_k=2):
-        return self.vector_store.search(goal, top_k=top_k)
+        return self.search(goal, top_k=top_k)

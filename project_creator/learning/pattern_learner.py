@@ -3,10 +3,14 @@ import re
 from .event_bus import bus
 from .memory_db import CodingMemory
 from .constitution import LearningConstitution
+from project_creator.memory.vector_store import VectorStore
+import os
 
 class PatternLearner:
     def __init__(self, db_path):
         self.memory = CodingMemory(db_path)
+        index_path = os.path.join(os.path.dirname(db_path), "jules_patterns.idx")
+        self.vector_store = VectorStore(index_path)
         self._setup_subscriptions()
 
     def _setup_subscriptions(self):

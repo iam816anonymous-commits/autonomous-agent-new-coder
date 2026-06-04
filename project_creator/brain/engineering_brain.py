@@ -1,6 +1,7 @@
 from .architecture_memory import ArchitectureMemory
 from .pattern_memory import PatternMemory
 from .repair_memory import RepairMemory
+from .repository_memory import RepositoryMemory
 from .strategy_builder import StrategyBuilder
 import os
 
@@ -9,6 +10,7 @@ class EngineeringBrain:
         self.arch_memory = ArchitectureMemory(db_path)
         self.pattern_memory = PatternMemory(db_path)
         self.repair_memory = RepairMemory(db_path)
+        self.repo_memory = RepositoryMemory(db_path)
         self.strategy_builder = StrategyBuilder(self)
 
     def consult(self, goal):
@@ -20,12 +22,15 @@ class EngineeringBrain:
         # Retrieval
         sim_arch = self.arch_memory.retrieve_similar(goal)
         sim_repairs = self.repair_memory.retrieve_repairs(goal)
+        sim_repos = self.repo_memory.retrieve_relevant(goal)
 
         context = {
             "recommended_arch": sim_arch[0].get('architecture') if sim_arch else "Standard Modular",
             "recommended_deps": sim_arch[0].get('dependencies', []) if sim_arch else [],
             "failure_patterns": [r.get('error') for r in sim_repairs if r.get('success_rate', 1.0) < 0.5],
-            "repair_strategies": [r.get('repair') for r in sim_repairs if r.get('success_rate', 0.0) > 0.7]
+            "repair_strategies": [r.get('repair') for r in sim_repairs if r.get('success_rate', 0.0) > 0.7],
+            "relevant_repos": [r.get('repository') for r in sim_repos],
+            "repository_knowledge": sim_repos
         }
 
         strategy_doc = self.strategy_builder.generate_strategy_document(goal, context)

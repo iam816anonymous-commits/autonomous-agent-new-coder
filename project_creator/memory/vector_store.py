@@ -9,6 +9,8 @@ except ImportError:
     HAS_SEMANTIC = False
 
 class VectorStore:
+    _model_cache = None  # Class-level cache to avoid redundant loads
+
     def __init__(self, index_path):
         self.index_path = index_path
         self.model = None
@@ -18,7 +20,11 @@ class VectorStore:
 
         if HAS_SEMANTIC:
             try:
-                self.model = SentenceTransformer('all-MiniLM-L6-v2')
+                # ⚡ Bolt Optimization: Use class-level cache for SentenceTransformer
+                if VectorStore._model_cache is None:
+                    VectorStore._model_cache = SentenceTransformer('all-MiniLM-L6-v2')
+                self.model = VectorStore._model_cache
+
                 self.index = faiss.IndexFlatL2(self.dimension)
                 self._load()
             except:

@@ -3,6 +3,10 @@ from .pattern_memory import PatternMemory
 from .repair_memory import RepairMemory
 from .repository_memory import RepositoryMemory
 from .strategy_builder import StrategyBuilder
+from .architecture_consultant import ArchitectureConsultant
+from .repository_comparison import RepositoryComparison
+from .architecture_synthesizer import ArchitectureSynthesizer
+from .tradeoff_analyzer import TradeoffAnalyzer
 import os
 
 class EngineeringBrain:
@@ -12,6 +16,12 @@ class EngineeringBrain:
         self.repair_memory = RepairMemory(db_path)
         self.repo_memory = RepositoryMemory(db_path)
         self.strategy_builder = StrategyBuilder(self)
+
+        # Architecture Intelligence Modules
+        self.consultant = ArchitectureConsultant(db_path)
+        self.comparison = RepositoryComparison()
+        self.synthesizer = ArchitectureSynthesizer()
+        self.tradeoffs = TradeoffAnalyzer()
 
     def consult(self, goal):
         """
@@ -33,8 +43,39 @@ class EngineeringBrain:
             "repository_knowledge": sim_repos
         }
 
+        # 1. Advanced Architecture Intelligence
+        recommendation = self.consultant.recommend(goal)
+        tradeoff_analysis = self.tradeoffs.analyze(recommendation)
+
+        context["architectural_recommendation"] = recommendation
+        context["tradeoffs"] = tradeoff_analysis
+
         strategy_doc = self.strategy_builder.generate_strategy_document(goal, context)
+
+        # 2. Design Review Artifact
+        self._generate_design_review(goal, recommendation, tradeoff_analysis)
+
         return strategy_doc, context
+
+    def _generate_design_review(self, goal, recommendation, tradeoffs):
+        report = f"""# 📐 Architecture Review: {goal}
+
+## 🏗️ Recommended Structure
+- **Style**: {recommendation['architecture_style']}
+- **Core Patterns**: {', '.join(recommendation['suggested_patterns'][:5])}
+- **References**: {', '.join(recommendation['external_references'])}
+
+## ⚖️ Tradeoff Analysis
+- **Benefits**: {', '.join(tradeoffs['benefits'])}
+- **Risks**: {', '.join(tradeoffs['risks']) if tradeoffs['risks'] else 'Low known risks'}
+- **Complexity**: {tradeoffs['complexity']}
+- **Maintenance Cost**: {tradeoffs['maintenance_cost']}
+
+## 🛡️ Security & Reliability
+- **Known Pitfalls**: {', '.join(recommendation['known_pitfalls']) if recommendation['known_pitfalls'] else 'None identified'}
+"""
+        with open("architecture_review.md", "w") as f:
+            f.write(report)
 
     def learn_from_completed_task(self, session_data):
         """

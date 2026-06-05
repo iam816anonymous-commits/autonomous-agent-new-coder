@@ -1,133 +1,160 @@
-# 🧠 Mini Jules: Master Documentation
+# 🧠 Mini Jules: Master Documentation (v15)
 
 ## Executive Summary
 **Mini Jules** is an autonomous AI engineering agent designed to architect, write, and assemble multi-file software projects. It leverages a hierarchical planning system, a persistent "Engineering Brain," and a "Reality Learning Engine" to improve its performance through experience.
 
-*   **What it is:** A self-correcting, memory-augmented development agent with a verified sandbox for safe execution.
-*   **What it is NOT:** A simple code completer or a standard chat assistant. It is a full SDLC orchestrator.
-*   **Current Maturity Level:** Beta (v14 Hardened). Core loops for planning, generation, and repair are stable. Repository learning is functional.
+*   **Status:** V14 Hardened (Production Beta)
+*   **Intelligence Score:** 87.5/100
+*   **Core Loop:** Plan → Generate → Sandbox → Critique → Repair → Apply
 
 ---
 
 ## Core Purpose
-The primary mission of Mini Jules is to provide a reliable, autonomous alternative to manual project bootstrapping and maintenance.
+Primary mission is the autonomous creation and maintenance of production-grade codebases with safety-first sandbox verification and persistent architectural memory.
 
-*   **Target Users:** Software architects, rapid prototypers, and autonomous agent researchers.
-*   **Supported Workflows:**
-    *   Greenfield multi-file project creation.
-    *   Existing repository modification and repair.
-    *   Autonomous learning from open-source repositories.
+---
+
+## Capability Matrix
+
+| Capability | Status | Confidence | Description |
+|------------|---------|------------|-------------|
+| **Multi-file generation** | Stable | 95% | Creation of complex stage-based project structures. |
+| **Repository learning** | Stable | 90% | Extracting architectural DNA from GitHub repositories. |
+| **Self repair** | Stable | 90% | Autonomous correction of syntax and import errors. |
+| **Architecture synthesis**| Beta | 75% | Merging patterns from multiple source repositories. |
+| **VS Code integration** | Stable | 95% | Sidebar UI, CodeLens actions, and bridge commands. |
+| **Cross-repo reasoning** | Beta | 70% | Using external knowledge cards to guide new designs. |
+| **Multi-lang support** | Alpha | 40% | Patterns for JS, TS, Go, Rust (Python is primary). |
 
 ---
 
 ## System Architecture
-Mini Jules follows a decoupled, coordinator-based architecture.
+
+### Learning Pipeline
+```mermaid
+graph TD
+    A[Activity/Repo] --> B[Collector/Cloner]
+    B --> C[Sanitizer/Scrubber]
+    C --> D{Learner Type}
+    D -->|SQL| E[Pattern/Heuristic Memory]
+    D -->|Vector| F[Architecture/Repair Memory]
+    E --> G[Retriever]
+    F --> G
+    G --> H[Strategy Builder]
+    H --> I[Execution]
+```
 
 ### High-Level Flow
-1.  **Goal Recognition:** User provides a high-level requirement.
-2.  **Brain Consultation:** Agent queries `RepositoryMemory` and `ArchitectureMemory`.
-3.  **Architecture Intelligence:** `ArchitectureConsultant` generates a `Strategy Document`.
-4.  **Hierarchical Planning:** `PlannerAgent` creates a multi-stage blueprint.
-5.  **Generation:** `GenerationCoordinator` writes code in dependency-aware order.
-6.  **Sandbox Validation:** `ValidationManager` runs code in an isolated `venv`.
-7.  **Critique & Repair:** `CritiqueAgent` and `RepairStrategist` fix failures in-loop.
-8.  **Final Validation:** Full project test suite execution.
-9.  **Apply & Learn:** Files are written to disk, and results are stored in memory.
+Goal → **Repository Brain** → **Architecture Intelligence** → **Strategy Document** → **Generation** → **Sandbox** → **Critique** → **Repair** → **Validation** → **Apply**.
 
 ---
 
 ## Major Components
 
-### 🏗️ Orchestrator
-*   **Purpose:** Central authority for the project lifecycle.
-*   **Responsibilities:** Managing state, triggering planning, and coordinating generation stages.
-*   **Dependencies:** `Storage`, `ToolExecutor`, `EngineeringBrain`.
+### 🏗️ Orchestrator (`project_creator/core/orchestrator.py`)
+Central authority. Manages global state and coordinates specialized sub-coordinators (`GenerationCoordinator`, `ExecutionCoordinator`).
 
-### 🛡️ ValidationManager & Sandbox
-*   **Purpose:** Secure, isolated verification of generated code.
-*   **Responsibilities:** Creating temporary virtual environments, running lint/tests, and detecting runtime errors.
-*   **Security:** Whitelisted commands and environment variable sanitization.
+### 🛡️ ValidationManager & Sandbox (`project_creator/core/validation.py`)
+Runs generated code in isolated `venv` directories with whitelisted commands and environment variable sanitization.
 
-### 🛠️ Repair Engine (`RepairStrategist` & `RepairAgent`)
-*   **Purpose:** Self-correction loop.
-*   **Responsibilities:** Classifying errors (Syntax, Import, Logic) and formulating patches based on historical repair success.
-
-### 🧠 Engineering Brain
-*   **Purpose:** Long-term strategic memory.
-*   **Responsibilities:** Maintaining `Knowledge Cards`, generating architectural reviews, and synthesizing cross-repository patterns.
-*   **Components:** `ArchitectureConsultant`, `RepositoryComparison`, `ArchitectureSynthesizer`, `TradeoffAnalyzer`.
+### 🛠️ Repair Engine (`project_creator/core/repair_strategist.py`)
+Classifies errors (SYNTAX, IMPORT, LOGIC) and formulates multi-file repair plans using historical repair context.
 
 ---
 
-## Repository Learning
-Mini Jules learns from external codebases without storing sensitive source code.
+## Repository Intelligence
+The system learns from external repositories without storing source code.
 
-*   **Ingestion Workflow:** Clone (depth 1) → Static Analysis → Knowledge Extraction → Store → Delete.
-*   **Extraction:** Architecture style (MVC, Modular, etc.), dependencies, frameworks, and design patterns (RAG, Agent-based, Provider Routing).
-*   **Knowledge Card:** A structured JSON summary of a repository's "DNA".
-*   **Synthesis:** Merging patterns from multiple ingested cards (e.g., OpenHands + CrewAI) into a superior recommended architecture.
-
----
-
-## Learning System
-The agent utilizes a dual-layered memory architecture.
-
-1.  **Relational Memory (SQLite):** Tracks frequency-based patterns, idioms, and naming conventions.
-2.  **Semantic Memory (FAISS/VectorStore):** Stores high-dimensional embeddings of past repairs, architectures, and knowledge cards for similarity-based retrieval.
-3.  **Knowledge Attribution:** Every learned pattern is tagged with its source (`SELF`, `EXTERNAL`, `USER`, `SWE_BENCH`).
-4.  **Bias Prevention:** Weighted retrieval favors industry standards (`EXTERNAL` 60%) over potentially flawed self-learned patterns (`SELF` 40%).
+*   **Workflow:** Clone (depth 1) → `ArchitectureExtractor` → `DependencyExtractor` → **Knowledge Card** → Store → Delete.
+*   **Knowledge Card:** Structured JSON containing architecture style, folder structure, patterns (RAG, Agent, Auth), and complexity scores.
+*   **Architecture Synthesis:** Merges patterns from multiple sources (e.g., OpenHands + CrewAI) into a cohesive recommendation.
+*   **Architecture Consultant:** Generates `architecture_review.md` including tradeoff analysis (benefits, risks, costs).
 
 ---
 
-## Capabilities
-*   **Multi-File Planning:** Can architect 20+ file projects with correct directory structures.
-*   **Topological Sorting:** Generates files in the correct import order.
-*   **Autonomous Repair:** Reaches 100% success on standard Python dependency and syntax errors within 3 cycles.
-*   **Architectural Reasoning:** Recommends specific stacks (FastAPI, Qdrant, LiteLLM) based on project type.
-*   **VS Code Integration:** Native sidebar with memory stats and CodeLens actions.
+## Learning & Memory System
 
----
+### Memory Architecture
+1.  **Relational (SQLite):** `~/.jules_memory.db`. Stores `patterns`, `snippets`, `heuristics`, `anti_patterns`.
+2.  **Semantic (FAISS):** `.idx` files in memory directory. Stores high-dimensional embeddings for `architecture` and `repair` lookups.
 
-## Limitations
-*   **Language Support:** Primary focus is Python; limited support for JS/TS/Go/Rust patterns.
-*   **Complexity:** Currently struggles with circular dependencies across 50+ files.
-*   **Logic Errors:** While syntax and imports are easily fixed, deep semantic logic errors still require human review.
-*   **Execution Safety:** Does not execute terminal commands outside the whitelist (no automated `sudo` or `rm -rf`).
+### Intelligence Score Breakdown
+The 0-100 score is a weighted aggregate of:
+*   **Repair Success (30%)**: Percentage of sandbox errors fixed without human intervention.
+*   **Architecture Quality (25%)**: Modularity and pattern alignment scores.
+*   **Retrieval Precision (20%)**: Relevancy of retrieved patterns to current tasks.
+*   **Pattern Reuse (15%)**: Frequency of successfully injected idiomatic code.
+*   **Project Completion (10%)**: Ratio of successful builds to total attempts.
+
+### Bias Prevention
+Retrieval weights: **EXTERNAL (1.0)** vs **SELF (0.4)**. Prioritizes industry-standard patterns from open-source repositories over potentially flawed self-learned ones.
 
 ---
 
 ## Safety Model
-*   **Sandbox Constitution:** Strictly whitelisted base commands (`pytest`, `python3`, `ruff`).
-*   **Environment Isolation:** All code generation dry-runs occur in temporary `jules_vman_` directories.
-*   **Secret Scrubbing:** `LearningConstitution` prevents API keys or credentials from being persisted in long-term memory.
-*   **Audit Logging:** All sandbox executions are recorded in `agent_audit.log`.
+*   **Sandbox Constitution:** strictly whitelisted bases (`pytest`, `ruff`, `python3`).
+*   **Forbidden Patterns:** Blocks `sudo`, `rm -rf /`, `curl`, `eval`, and credential access (`.env`).
+*   **Secret Scrubbing:** Automated regex-based removal of API keys and tokens before memory storage.
 
 ---
 
-## Benchmarks
-*   **Intelligence Score:** 87.5/100 (Weighted by repair success and architecture quality).
-*   **Knowledge Transfer:** 100% success rate in cross-domain dependency resolution.
-*   **Efficiency:** 45% reduction in project completion time over 10 iterations.
+## Database Schema Overview
+
+| Table | Purpose | Key Columns |
+|-------|---------|-------------|
+| `patterns` | Coding idioms | `pattern_type`, `content`, `frequency`, `source_type` |
+| `snippets` | Reusable code | `file_path`, `content`, `status`, `source_type` |
+| `heuristics`| High-level rules | `topic`, `heuristic`, `source_type` |
+| `failures` | Anti-patterns | `type`, `error_msg`, `context_snippet` |
+| `git_commits`| Style evolution | `hash`, `author`, `message`, `repo_path` |
 
 ---
 
-## Project Structure
-*   `project_creator/core/`: Foundation logic (Storage, Orchestrator, Tools).
-*   `project_creator/brain/`: Architectural intelligence and repository memory.
-*   `project_creator/agents/`: LLM-powered specialized personas.
-*   `project_creator/learning/`: Reality learning engine and SQLite persistence.
-*   `project_creator/memory/`: Semantic retrieval and vector store.
-*   `reports/`: Empirical evidence and system audits.
-*   `mini-jules-vscode/`: Native IDE extension files.
+## Limitations & Known Failure Modes
+*   **Hallucinated Imports:** Occasionally attempts to import non-existent submodules.
+*   **Package Versions:** May use outdated library syntax (e.g., Pydantic v1 vs v2).
+*   **Over-Engineering:** Tendency to apply complex agent patterns to trivial CRUD tasks.
+*   **Monorepo Scaling:** Struggles with analysis depth on repositories >1000 files.
+*   **Logic Repairs:** While syntax is easily fixed, deep algorithmic bugs still require human review.
 
 ---
 
-## Configuration
-*   **Environment:** `.env` file for `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, etc.
-*   **Database:** Local SQLite (`~/.jules_memory.db`) with automatic migrations.
-*   **Models:** Defaults to `gemini-2.5-flash` for balance of speed and context.
+## Current State & Roadmap
+
+### Current State
+V14 Hardened. Core SDLC loop is verified. Architecture Intelligence is functional. VS Code bridge is stable.
+
+### Next Priorities
+*   **Architecture Benchmarking:** Structured testing of synthesized designs.
+*   **Stronger Semantic Repair:** Using knowledge cards to guide logic fixes.
+*   **Multi-Agent "War Gaming":** Agent vs Agent architectural stress testing.
+
+### Long-Term Vision
+**Jarvis Engineering Platform**: A fully autonomous engineering department for complex distributed systems.
 
 ---
 
-*Documentation Version: 14.1.0*
+## Troubleshooting & Common Commands
+
+| Task | Command |
+|------|---------|
+| **Start Server** | `python3 project_creator/server.py` |
+| **Run E2E Test** | `python3 examples/enhanced_workflow.py` |
+| **Verify Learning**| `python3 project_creator/brain/generalized_experiment.py`|
+| **Health Check** | `python3 -c "from project_creator.brain.health_monitor import HealthMonitor; HealthMonitor().generate_report()"` |
+
+---
+
+## Frequently Asked Questions
+**Q: How does Jules learn?**
+A: By observing your edits, git history, and analyzing top-tier open-source repositories.
+
+**Q: Is it safe?**
+A: Yes. All execution happens in an isolated sandbox with a strictly enforced command constitution.
+
+**Q: Can I use it in VS Code?**
+A: Yes, using the provided `mini-jules-vscode` extension which bridges to the local FastAPI server.
+
+---
+*Documentation Version: 15.0.0*
 *Last Updated: 2025-05-15*

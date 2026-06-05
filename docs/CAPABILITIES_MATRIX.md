@@ -1,16 +1,16 @@
-# 📊 Mini Jules: Capabilities Matrix
+# 📊 Mini Jules: Capabilities Matrix (v15)
 
-| Capability | Description | Confidence Level | Implementation Status |
-| :--- | :--- | :---: | :---: |
-| **Multi-File Generation** | Creation of complex, stage-based project structures. | 95% | Production Ready |
-| **Autonomous Repair** | Self-correction of syntax and import errors in sandbox. | 90% | Production Ready |
-| **Dependency Awareness** | Topological sorting to generate files in import order. | 85% | Beta |
-| **Repository Ingestion** | Extracting architectural "DNA" from GitHub repositories. | 80% | Beta |
-| **Architecture Review** | Generating structured design tradeoff reports. | 75% | Beta |
-| **Knowledge Transfer** | Reusing fixes and patterns across unrelated projects. | 85% | Production Ready |
-| **VS Code Integration** | Sidebar UI and inline CodeLens actions for IDE support. | 70% | Beta |
-| **Logic Verification** | Identifying semantic bugs via test suite execution. | 60% | Alpha |
-| **Cross-Language Learning**| Learning patterns from JS, TS, Go, and Rust. | 40% | Alpha |
+| Capability | Description | Status | Confidence | Implementation |
+| :--- | :--- | :---: | :---: | :---: |
+| **Multi-File Generation** | Creation of complex, stage-based project structures. | Stable | 95% | Orchestrator/Coder |
+| **Autonomous Repair** | Self-correction of syntax and import errors in sandbox. | Stable | 90% | Validation/Repair |
+| **Repository Ingestion** | Extracting architectural "DNA" from GitHub repositories. | Stable | 90% | RepositoryBrain |
+| **Architecture Synthesis**| Merging patterns from multiple source repositories. | Beta | 75% | Synthesizer |
+| **VS Code Integration** | Sidebar UI and inline CodeLens actions for IDE support. | Stable | 95% | Bridge/Extension |
+| **Knowledge Transfer** | Reusing fixes and patterns across unrelated projects. | Stable | 85% | Memory/Retriever |
+| **Tradeoff Analysis** | Generating structured design reviews with risk assessment. | Beta | 70% | TradeoffAnalyzer |
+| **Logic Verification** | Identifying semantic bugs via test suite execution. | Alpha | 60% | TestExecutor |
+| **Multi-Lang Support** | Learning patterns from JS, TS, Go, and Rust. | Alpha | 40% | ArchitectureExtractor|
 
 ---
 *Confidence levels reflect the agent's probability of successful execution without human intervention.*

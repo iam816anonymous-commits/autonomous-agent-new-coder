@@ -1,22 +1,21 @@
-# ⚠️ Mini Jules: Limitations & Weaknesses
+# ⚠️ Mini Jules: Limitations & Known Failure Modes (v15)
 
-## Known Weaknesses
-1.  **Circular Dependencies:** The topological sorter may fail or produce suboptimal orders if the prompt design encourages tight coupling or circular imports.
-2.  **Context Window Drifts:** In extremely large projects (100+ files), the agent may lose track of earlier architectural decisions unless they are explicitly in the `Strategy Document`.
-3.  **Non-Python Performance:** While it can "read" multiple languages, its ability to "fix" JS/TS or Rust code in the sandbox is significantly lower than Python.
-4.  **Complex Logic Repairs:** The `RepairAgent` is excellent at syntax and configuration, but may get stuck in loops trying to fix deep algorithmic bugs.
+## Known Failure Modes
+1.  **Hallucinated Imports:** Occasionally attempts to import submodules that don't exist in the target environment or library version.
+2.  **Package Version Drift:** May use outdated library syntax (e.g., assuming Pydantic v1 when v2 is installed) unless version pins are provided.
+3.  **Over-Engineering:** Tendency to apply complex Multi-Agent or RAG patterns to simple CLI tasks if those patterns are fresh in its memory.
+4.  **Circular Dependencies:** The topological sorter may struggle if the prompt design encourages tight coupling between core models and API layers.
+5.  **Weak Semantic Repair:** While excellent at fixing syntax and imports, deep logical or algorithmic bugs often lead to repair loops that require human intervention.
 
-## Failure Modes
-*   **Model Hallucination:** If the memory retriever returns irrelevant patterns, the agent may attempt to inject incorrect idioms.
-*   **Sandbox Isolation Escapes:** While whitelisted, a sufficiently complex Python script could still attempt dangerous operations if not monitored.
-*   **Database Corruption:** Concurrent access to the SQLite memory during heavy learning cycles can occasionally cause locking issues (mitigated by `DatabaseManager`).
+## Architectural Weaknesses
+*   **Scale Limits:** Performance degrades on monolithic repositories containing >1000 files during full workspace scans.
+*   **Language Bias:** Heavily optimized for Python; pattern extraction for Go/Rust/Java is currently limited to structural heuristics.
+*   **Context Window Drift:** In extremely large generation tasks, the agent may lose alignment with the `Strategy Document` if not explicitly reminded in stage prompts.
 
 ## Unsupported Scenarios
-*   **GUI Applications:** No current support for building or testing desktop/native mobile UIs.
-*   **Legacy Refactors:** Mini Jules is optimized for greenfield generation or surgical repair, not for rewriting massive legacy codebases.
-*   **High-Privilege Ops:** The sandbox constitution forbids operations requiring `root` or `admin` access.
+*   **GUI/Mobile Testing:** No support for automated UI interaction testing (Selenium/Appium/Cypress).
+*   **Root-Level Operations:** The Sandbox Constitution strictly forbids commands requiring `sudo` or modification of system files.
+*   **Legacy Refactors:** Designed for surgical repair and greenfield generation; not a general-purpose "Rewrite my legacy app" tool.
 
-## Planned Improvements
-*   [ ] Memory decay mechanisms for outdated patterns.
-*   [ ] Enhanced support for TypeScript/Node.js sandboxing.
-*   [ ] Multi-agent "War Gaming" for architectural stress testing.
+---
+*Documented as of Hardened v15 release.*

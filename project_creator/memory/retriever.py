@@ -10,11 +10,16 @@ class Retriever:
 
     def retrieve_context(self, task_type, query=None, path=None):
         """Assembles a context block of learned patterns to augment LLM prompts."""
+        framework_hint = None
+        if query:
+            if "streamlit" in query.lower(): framework_hint = "streamlit"
+            elif "fastapi" in query.lower(): framework_hint = "fastapi"
+
         # Weighted Retrieval: Prefer EXTERNAL (60%) over SELF (40%)
-        imports = self._get_weighted_patterns('import', limit=5)
-        naming = self._get_weighted_patterns('naming', limit=1)
-        api_styles = self._get_weighted_patterns('api_style', limit=3)
-        idioms = self._get_weighted_patterns('idiom', limit=5)
+        imports = self._get_weighted_patterns('import', limit=5, framework_hint=framework_hint)
+        naming = self._get_weighted_patterns('naming', limit=1, framework_hint=framework_hint)
+        api_styles = self._get_weighted_patterns('api_style', limit=3, framework_hint=framework_hint)
+        idioms = self._get_weighted_patterns('idiom', limit=5, framework_hint=framework_hint)
 
         context_lines = ["User Preferred Patterns:"]
         if imports:
@@ -28,7 +33,7 @@ class Retriever:
 
         return "\n".join(context_lines) if len(context_lines) > 1 else ""
 
-    def _get_weighted_patterns(self, p_type, limit=5):
+    def _get_weighted_patterns(self, p_type, limit=5, framework_hint=None):
         raw_rows = self.memory.get_top_patterns(p_type, limit=limit * 2)
         if not raw_rows: return []
 
@@ -40,6 +45,11 @@ class Retriever:
         for content, source, freq in raw_rows:
             weight = weights.get(source, 0.4)
             score = freq * weight
+
+            # Framework Boost (Phase 3)
+            if framework_hint and framework_hint in content.lower():
+                score *= 2.0
+
             scored.append((content, score))
 
         # Rank by score and return top 'limit'

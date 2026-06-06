@@ -1,8 +1,11 @@
 from project_creator.core.utils import extract_json
+from project_creator.memory.retriever import Retriever
+from project_creator.learning import DB_PATH
 
 class PlannerAgent:
     def __init__(self, router):
         self.router = router
+        self.retriever = Retriever(DB_PATH)
 
     def create_blueprint(self, user_prompt, strategy_doc=None):
         system_prompt = """
@@ -31,6 +34,9 @@ class PlannerAgent:
         full_prompt = user_prompt
         if strategy_doc:
             full_prompt = f"ARCHITECTURAL STRATEGY:\n{strategy_doc}\n\nUSER GOAL: {user_prompt}"
+
+        # Augment with learned style and preference patterns
+        full_prompt = self.retriever.augment_prompt(full_prompt, task_type="planning")
 
         response = self.router.generate_blueprint(full_prompt, system_prompt)
         return extract_json(response)

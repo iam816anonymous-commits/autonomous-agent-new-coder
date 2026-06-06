@@ -1,9 +1,10 @@
 import os
 import sys
-from fastapi import FastAPI, HTTPException, Body
+from fastapi import FastAPI, HTTPException, Body, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Dict, Any
 import re
+import asyncio
 
 # Project root setup
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -37,6 +38,7 @@ class GlobalState:
     def __init__(self):
         self._router = None
         self.orch = None
+        self.monitor = None
 
     @property
     def router(self):
@@ -100,6 +102,65 @@ async def receive_event(event: Dict[str, Any]):
     collector.collect(event.get("type", "UNKNOWN"), event.get("data", {}))
     return {"status": "ok"}
 
+@app.get("/learning/patterns")
+async def get_patterns():
+    from project_creator.learning import DB_PATH
+    import sqlite3
+    try:
+        if not os.path.exists(DB_PATH):
+            return []
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM patterns ORDER BY frequency DESC")
+            return [dict(row) for row in cursor.fetchall()]
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+async def monitor_loop(monitor):
+    while True:
+        try:
+            monitor.scan_for_deltas()
+        except: pass
+        await asyncio.sleep(60)
+
+@app.post("/learning/scan")
+async def trigger_scan(background_tasks: BackgroundTasks, path: str = Body(default=".", embed=True)):
+    from project_creator.learning import initialize_reality_learning
+    try:
+        repo, commit, monitor = initialize_reality_learning(path)
+        state.monitor = monitor
+        background_tasks.add_task(monitor_loop, monitor)
+        return {"status": "scan_started"}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@app.put("/learning/patterns/{pattern_id}")
+async def update_pattern(pattern_id: int, content: str = Body(..., embed=True)):
+    from project_creator.learning import DB_PATH
+    import sqlite3
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE patterns SET content = ? WHERE id = ?", (content, pattern_id))
+            conn.commit()
+            return {"status": "ok"}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@app.delete("/learning/patterns/{pattern_id}")
+async def delete_pattern(pattern_id: int):
+    from project_creator.learning import DB_PATH
+    import sqlite3
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM patterns WHERE id = ?", (pattern_id,))
+            conn.commit()
+            return {"status": "ok"}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
 @app.get("/learning/stats")
 async def get_learning_stats():
     from project_creator.learning import DB_PATH
@@ -129,6 +190,17 @@ async def get_learning_stats():
             }
     except Exception as e:
         return {"error": str(e)}
+
+@app.post("/learning/export")
+async def export_lora(output_path: str = Body(default="lora_dataset.jsonl", embed=True)):
+    from project_creator.exports.lora_dataset import DatasetExporter
+    from project_creator.learning import DB_PATH
+    try:
+        exporter = DatasetExporter(DB_PATH)
+        count = exporter.export_lora_jsonl(output_path)
+        return {"status": "ok", "count": count, "path": output_path}
+    except Exception as e:
+        raise HTTPException(500, str(e))
 
 @app.get("/learning/context")
 async def get_active_context(path: str):

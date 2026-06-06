@@ -17,12 +17,15 @@ pattern_learner = PatternLearner(DB_PATH)
 failure_learner = FailureLearner(DB_PATH)
 correction_learner = CorrectionLearner(DB_PATH)
 
+from .workspace_monitor import WorkspaceMonitor
+
 def initialize_reality_learning(workspace_root: str):
     """
     Bootstrap the Reality Learning Engine for a specific workspace.
     """
     repo = RepoLearner(workspace_root)
     commit = CommitLearner(DB_PATH, workspace_root)
+    monitor = WorkspaceMonitor(workspace_root)
 
     # 1. Scan existing files to learn style
     repo.scan_workspace()
@@ -31,4 +34,4 @@ def initialize_reality_learning(workspace_root: str):
     if os.path.exists(os.path.join(workspace_root, ".git")):
         commit.learn_history(limit=50)
 
-    return repo, commit
+    return repo, commit, monitor

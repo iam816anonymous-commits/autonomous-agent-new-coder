@@ -16,7 +16,17 @@ class PatternLearner:
     def _setup_subscriptions(self):
         bus.subscribe("PATCH_ACCEPTED", self.learn_from_patch)
         bus.subscribe("FILE_OPEN", self.learn_from_file)
+        bus.subscribe("MANUAL_EDIT_DETECTED", self.learn_from_edit)
         self.current_source = "SELF"
+
+    def learn_from_edit(self, data):
+        # Learn from what the user changed Jules' code into
+        path = data.get('path')
+        user_code = data.get('user_code', '')
+        if user_code:
+            print(f"🧠 PatternLearner: Learning from manual user edit in {path}")
+            self._extract_patterns(user_code, source_type="USER")
+            self.memory.add_snippet(path, user_code, 'MANUAL_EDIT', source_type="USER")
 
     def learn_from_patch(self, data):
         # Learn from code that was actually accepted
@@ -50,11 +60,13 @@ class PatternLearner:
                     self.memory.learn_pattern('import', node.module, source_type=source_type)
         except: pass
 
-        # 2. Extract specific API patterns (e.g. FastAPI APIRouter)
+        # 2. Extract specific API patterns (e.g. FastAPI, Streamlit)
         if "APIRouter()" in content:
             self.memory.learn_pattern('api_style', 'fastapi_router', source_type=source_type)
         if "app = FastAPI()" in content:
             self.memory.learn_pattern('api_style', 'fastapi_app', source_type=source_type)
+        if "import streamlit as st" in content or "import streamlit" in content:
+            self.memory.learn_pattern('api_style', 'streamlit_app', source_type=source_type)
 
         # 3. Naming Conventions (Heuristic)
         if re.search(r'def [a-z_]+', content):

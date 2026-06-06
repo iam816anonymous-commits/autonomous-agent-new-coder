@@ -1,6 +1,7 @@
 from project_creator.learning.memory_db import CodingMemory
 from project_creator.memory.vector_store import VectorStore
 import os
+import datetime
 
 class Retriever:
     def __init__(self, db_path):
@@ -34,17 +35,31 @@ class Retriever:
         return "\n".join(context_lines) if len(context_lines) > 1 else ""
 
     def _get_weighted_patterns(self, p_type, limit=5, framework_hint=None):
+        # We now query content, source_type, frequency, and last_seen
         raw_rows = self.memory.get_top_patterns(p_type, limit=limit * 2)
         if not raw_rows: return []
 
-        # Scoring: Score = Frequency * SourceWeight
+        # Scoring: Score = Frequency * SourceWeight * RecencyFactor
         # EXTERNAL = 1.0, USER = 0.8, SWE_BENCH = 0.7, SELF = 0.4
         weights = {"EXTERNAL": 1.0, "USER": 0.8, "SWE_BENCH": 0.7, "SELF": 0.4}
 
         scored = []
-        for content, source, freq in raw_rows:
+        now = datetime.datetime.now()
+
+        for content, source, freq, last_seen in raw_rows:
             weight = weights.get(source, 0.4)
-            score = freq * weight
+
+            # Recency Factor: Boost items seen in the last 24 hours
+            recency_factor = 1.0
+            if last_seen:
+                try:
+                    last_seen_dt = datetime.datetime.strptime(last_seen, "%Y-%m-%d %H:%M:%S")
+                    days_diff = (now - last_seen_dt).days
+                    if days_diff == 0: recency_factor = 1.5
+                    elif days_diff < 7: recency_factor = 1.2
+                except: pass
+
+            score = freq * weight * recency_factor
 
             # Framework Boost (Phase 3)
             if framework_hint and framework_hint in content.lower():

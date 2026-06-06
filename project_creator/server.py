@@ -102,6 +102,29 @@ async def receive_event(event: Dict[str, Any]):
     collector.collect(event.get("type", "UNKNOWN"), event.get("data", {}))
     return {"status": "ok"}
 
+@app.get("/learning/recent")
+async def get_recent_activity(limit: int = 5):
+    from project_creator.learning import DB_PATH
+    import sqlite3
+    try:
+        if not os.path.exists(DB_PATH):
+            return []
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            # Fetch from snippets (edits/patches) and patterns
+            cursor.execute("SELECT 'PATTERN' as type, pattern_type as label, content, last_seen as ts FROM patterns ORDER BY last_seen DESC LIMIT ?", (limit,))
+            patterns = [dict(row) for row in cursor.fetchall()]
+
+            cursor.execute("SELECT 'CODE' as type, status as label, file_path as content, created_at as ts FROM snippets ORDER BY created_at DESC LIMIT ?", (limit,))
+            snippets = [dict(row) for row in cursor.fetchall()]
+
+            combined = patterns + snippets
+            combined.sort(key=lambda x: x['ts'], reverse=True)
+            return combined[:limit]
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
 @app.get("/learning/patterns")
 async def get_patterns():
     from project_creator.learning import DB_PATH
@@ -117,20 +140,13 @@ async def get_patterns():
     except Exception as e:
         raise HTTPException(500, str(e))
 
-async def monitor_loop(monitor):
-    while True:
-        try:
-            monitor.scan_for_deltas()
-        except: pass
-        await asyncio.sleep(60)
-
 @app.post("/learning/scan")
-async def trigger_scan(background_tasks: BackgroundTasks, path: str = Body(default=".", embed=True)):
+async def trigger_scan(path: str = Body(default=".", embed=True)):
     from project_creator.learning import initialize_reality_learning
     try:
         repo, commit, monitor = initialize_reality_learning(path)
         state.monitor = monitor
-        background_tasks.add_task(monitor_loop, monitor)
+        monitor.start() # Use watchdog instead of polling loop
         return {"status": "scan_started"}
     except Exception as e:
         raise HTTPException(500, str(e))

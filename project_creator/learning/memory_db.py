@@ -131,15 +131,17 @@ class CodingMemory:
         with self.db.transaction() as cursor:
             cursor.execute('SELECT id, frequency FROM patterns WHERE pattern_type = ? AND content = ? AND source_type = ?', (p_type, content, source_type))
             row = cursor.fetchone()
-            if row: cursor.execute('UPDATE patterns SET frequency = frequency + 1 WHERE id = ?', (row[0],))
-            else: cursor.execute('INSERT INTO patterns (pattern_type, content, source_type) VALUES (?, ?, ?)', (p_type, content, source_type))
+            if row:
+                cursor.execute('UPDATE patterns SET frequency = frequency + 1, last_seen = CURRENT_TIMESTAMP WHERE id = ?', (row[0],))
+            else:
+                cursor.execute('INSERT INTO patterns (pattern_type, content, source_type) VALUES (?, ?, ?)', (p_type, content, source_type))
 
     def add_snippet(self, path, content, status, source_type="SELF"):
         self.db.execute_commit('INSERT INTO snippets (file_path, content, status, source_type) VALUES (?, ?, ?, ?)', (path, content, status, source_type))
 
     def get_top_patterns(self, p_type, limit=10):
-        # We now query content and source_type for weighting
-        rows = self.db.execute_query('SELECT content, source_type, frequency FROM patterns WHERE pattern_type = ? ORDER BY frequency DESC LIMIT ?', (p_type, limit))
+        # We now query content, source_type, frequency, and last_seen for weighting and recency bias
+        rows = self.db.execute_query('SELECT content, source_type, frequency, last_seen FROM patterns WHERE pattern_type = ? ORDER BY frequency DESC LIMIT ?', (p_type, limit))
         return rows
 
     def add_heuristic(self, topic, text, source_type="SELF"):

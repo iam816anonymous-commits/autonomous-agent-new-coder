@@ -47,6 +47,7 @@ class JulesViewProvider implements vscode.WebviewViewProvider {
                 case 'refresh':
                     await this._refreshStats();
                     await this._refreshPatterns();
+                    await this._refreshRecent();
                     break;
                 case 'deletePattern':
                     await fetch(`${this._baseUrl}/learning/patterns/${message.id}`, { method: 'DELETE' });
@@ -88,6 +89,14 @@ class JulesViewProvider implements vscode.WebviewViewProvider {
         } catch (e) {}
     }
 
+    private async _refreshRecent() {
+        try {
+            const res = await fetch(`${this._baseUrl}/learning/recent`);
+            const data = await res.json();
+            this._view?.webview.postMessage({ type: 'updateRecent', data: data });
+        } catch (e) {}
+    }
+
     private _getHtml() {
         return `<html>
         <head>
@@ -117,6 +126,10 @@ class JulesViewProvider implements vscode.WebviewViewProvider {
                     <div id="stats-container">Loading...</div>
                     <button onclick="exportLora()" style="margin-top: 10px; width: 100%;">Export LoRA Dataset</button>
                 </div>
+                <div style="margin-top: 15px;">
+                    <h4>🕒 Recent Activity</h4>
+                    <div id="recent-container" style="opacity: 0.8; font-size: 10px;">Loading...</div>
+                </div>
             </div>
 
             <div id="patterns" class="content">
@@ -141,12 +154,18 @@ class JulesViewProvider implements vscode.WebviewViewProvider {
                             <div class="stat">Patterns Learned: <span class="value">\${message.data.patterns || 0}</span></div>
                             <div class="stat">Memory Growth: <span class="value">\${message.data.memory_growth || '0 KB'}</span></div>
                         \`;
+                    } else if (message.type === 'updateRecent') {
+                        document.getElementById('recent-container').innerHTML = message.data.map(r => \`
+                            <div style="margin-bottom: 4px; border-left: 2px solid #555; padding-left: 5px;">
+                                [\${r.type}] <b>\${r.label}</b>: \${r.content}
+                            </div>
+                        \`).join('');
                     } else if (message.type === 'updatePatterns') {
                         document.getElementById('patterns-container').innerHTML = message.data.map(p => \`
                             <div class="pattern-item">
-                                <b>${p.pattern_type}</b>:
-                                <span id="content-${p.id}" contenteditable="true" onblur="updatePattern(${p.id})">${p.content}</span>
-                                (${p.frequency})
+                                <b>\${p.pattern_type}</b>:
+                                <span id="content-\${p.id}" contenteditable="true" onblur="updatePattern(\${p.id})">\${p.content}</span>
+                                (\${p.frequency})
                                 <span class="delete-btn" onclick="deletePattern(\${p.id})">🗑️</span>
                             </div>
                         \`).join('');

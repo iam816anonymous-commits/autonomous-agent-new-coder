@@ -34,4 +34,4 @@ def test_trigger_scan():
     # Just test it doesn't crash
     response = client.post("/learning/scan", json={"path": "."})
     assert response.status_code == 200
-    assert response.json() == {"status": "scan_complete"}
+    assert response.json() == {"status": "scan_started"}

@@ -96,6 +96,15 @@ class JulesViewProvider implements vscode.WebviewViewProvider {
                         this._view?.webview.postMessage({ type: 'updateIngest', status: 'Error: ' + e });
                     }
                     break;
+                case 'searchDocs':
+                    try {
+                        const sres = await fetch(`${this._baseUrl}/search/docs?query=${encodeURIComponent(message.query)}`);
+                        const sdata = await sres.json();
+                        this._view?.webview.postMessage({ type: 'updateDocs', docs: sdata.documentation });
+                    } catch (e) {
+                        this._view?.webview.postMessage({ type: 'updateDocs', docs: 'Error: ' + e });
+                    }
+                    break;
             }
         });
     }
@@ -164,6 +173,7 @@ class JulesViewProvider implements vscode.WebviewViewProvider {
                 <div class="tab" onclick="showTab('design')">Design</div>
                 <div class="tab" onclick="showTab('vision')">Vision</div>
                 <div class="tab" onclick="showTab('learn')">Learn</div>
+                <div class="tab" onclick="showTab('docs')">Docs</div>
             </div>
 
             <div id="stats" class="content active">
@@ -203,6 +213,14 @@ class JulesViewProvider implements vscode.WebviewViewProvider {
                 <input type="text" id="ingest-path" placeholder="Repo URL or Local Path" style="width: 100%; margin-bottom: 5px;"/>
                 <button onclick="ingestRepo()" style="width: 100%; margin-top: 5px;">Ingest & Learn</button>
                 <div id="ingest-status" style="margin-top: 10px; font-size: 10px; opacity: 0.8;">Ready.</div>
+            </div>
+
+            <div id="docs" class="content">
+                <h3>🔍 Web Docs</h3>
+                <p>Search the web for documentation.</p>
+                <input type="text" id="docs-query" placeholder="Library or Framework..." style="width: 100%; margin-bottom: 5px;"/>
+                <button onclick="searchDocs()" style="width: 100%; margin-top: 5px;">Search Web</button>
+                <div id="docs-result" style="margin-top: 10px; font-size: 10px; opacity: 0.8; white-space: pre-wrap; background: #222; padding: 5px;"></div>
             </div>
 
             <script>
@@ -252,6 +270,8 @@ class JulesViewProvider implements vscode.WebviewViewProvider {
                         document.getElementById('vision-result').innerText = message.code;
                     } else if (message.type === 'updateIngest') {
                         document.getElementById('ingest-status').innerText = message.status;
+                    } else if (message.type === 'updateDocs') {
+                        document.getElementById('docs-result').innerText = message.docs;
                     }
                 });
 
@@ -279,6 +299,12 @@ class JulesViewProvider implements vscode.WebviewViewProvider {
                     const path = document.getElementById('ingest-path').value;
                     document.getElementById('ingest-status').innerText = 'Ingesting codebase...';
                     vscode.postMessage({ command: 'ingestRepo', path: path });
+                }
+
+                function searchDocs() {
+                    const query = document.getElementById('docs-query').value;
+                    document.getElementById('docs-result').innerText = 'Searching web...';
+                    vscode.postMessage({ command: 'searchDocs', query: query });
                 }
 
                 // Initial load

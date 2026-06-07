@@ -12,28 +12,30 @@ class ToolExecutor:
         # Sandbox Constitution: Strictly Whitelisted Bases
         self.allowed_bases = {"pytest", "ruff", "black", "python3"}
 
-    def execute(self, command, needs_approval=None):
+    async def execute_async(self, command, needs_approval=None):
         if needs_approval is None:
-            # Auto-detect risk: e.g. python3 on external files
             if command.startswith("python3"): needs_approval = True
 
         if needs_approval:
             import uuid
-            import time
+            import asyncio
             from project_creator.server import state
             cmd_id = str(uuid.uuid4())
             state.pending_commands[cmd_id] = {"command": command, "status": "pending"}
             print(f"🛑 Security: Command requires human approval: {command}")
 
-            # Wait for approval (polling global state for simplicity in this bridge)
             start_wait = time.time()
-            while time.time() - start_wait < 60: # 60s timeout
+            while time.time() - start_wait < 60:
                 if state.pending_commands.get(cmd_id, {}).get('status') == 'approved':
                     del state.pending_commands[cmd_id]
                     break
-                time.sleep(1)
+                await asyncio.sleep(1)
             else:
                 return {"error": "Security Rejection: Human approval timeout."}
+
+        return self.execute(command)
+
+    def execute(self, command):
 
         try:
             cmd_args = shlex.split(command)

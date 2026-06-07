@@ -12,7 +12,7 @@ class GeminiProvider:
         self.config = get_config()
         self.model_name = self.config.gemini_model
 
-    def generate(self, prompt, system_prompt=None, response_mime_type=None, image_bytes=None, image_mime="image/png"):
+    def generate(self, prompt, system_prompt=None, response_mime_type=None, image_bytes=None, image_mime="image/png", enable_search=False):
         parts = []
         if system_prompt:
             parts.append(system_prompt)
@@ -25,6 +25,9 @@ class GeminiProvider:
         config_args = {}
         if response_mime_type:
             config_args['response_mime_type'] = response_mime_type
+
+        if enable_search:
+            config_args['tools'] = [types.Tool(google_search=types.GoogleSearchRetrieval())]
 
         response = self.client.models.generate_content(
             model=self.model_name,

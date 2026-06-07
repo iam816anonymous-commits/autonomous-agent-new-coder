@@ -52,6 +52,17 @@ class EngineeringBrain:
         context["architectural_recommendation"] = recommendation
         context["tradeoffs"] = tradeoff_analysis
 
+        # 3. External Documentation Lookup (If memory context is sparse)
+        if len(sim_arch) == 0 and len(sim_repos) == 0:
+            print("🌐 Brain: Context sparse, searching web for documentation...")
+            try:
+                from project_creator.router.provider_router import ProviderRouter
+                router = ProviderRouter()
+                search_query = f"Architecture and implementation details for {goal} using modern libraries"
+                external_docs = router.gemini.generate(search_query, enable_search=True) if router.gemini else ""
+                context["external_documentation"] = external_docs
+            except: pass
+
         strategy_doc = self.strategy_builder.generate_strategy_document(goal, context)
 
         # 2. Design Review Artifact

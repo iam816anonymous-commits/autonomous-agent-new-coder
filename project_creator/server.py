@@ -264,6 +264,19 @@ async def approve_command(cmd_id: str):
         return {"status": "approved"}
     raise HTTPException(404, "Command not found")
 
+@app.get("/search/docs")
+async def search_docs(query: str):
+    from project_creator.router.provider_router import ProviderRouter
+    try:
+        router = ProviderRouter()
+        if not router.gemini:
+            raise HTTPException(400, "GeminiProvider not available (check API_KEY)")
+
+        result = router.gemini.generate(f"Search for documentation: {query}", enable_search=True)
+        return {"query": query, "documentation": result}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
 @app.get("/architecture/self")
 async def get_self_arch():
     from project_creator.brain.engineering_brain import EngineeringBrain

@@ -48,6 +48,7 @@ class JulesViewProvider implements vscode.WebviewViewProvider {
                     await this._refreshStats();
                     await this._refreshPatterns();
                     await this._refreshRecent();
+                    await this._refreshDesign();
                     break;
                 case 'deletePattern':
                     await fetch(`${this._baseUrl}/learning/patterns/${message.id}`, { method: 'DELETE' });
@@ -78,7 +79,9 @@ class JulesViewProvider implements vscode.WebviewViewProvider {
             const res = await fetch(`${this._baseUrl}/learning/stats`);
             const data = await res.json();
             this._view?.webview.postMessage({ type: 'updateStats', data: data });
-        } catch (e) {}
+        } catch (e) {
+            console.error('Failed to refresh stats:', e);
+        }
     }
 
     private async _refreshPatterns() {
@@ -86,7 +89,9 @@ class JulesViewProvider implements vscode.WebviewViewProvider {
             const res = await fetch(`${this._baseUrl}/learning/patterns`);
             const data = await res.json();
             this._view?.webview.postMessage({ type: 'updatePatterns', data: data });
-        } catch (e) {}
+        } catch (e) {
+            console.error('Failed to refresh patterns:', e);
+        }
     }
 
     private async _refreshRecent() {
@@ -94,7 +99,19 @@ class JulesViewProvider implements vscode.WebviewViewProvider {
             const res = await fetch(`${this._baseUrl}/learning/recent`);
             const data = await res.json();
             this._view?.webview.postMessage({ type: 'updateRecent', data: data });
-        } catch (e) {}
+        } catch (e) {
+            console.error('Failed to refresh recent activity:', e);
+        }
+    }
+
+    private async _refreshDesign() {
+        try {
+            const res = await fetch(`${this._baseUrl}/architecture/self`);
+            const data = await res.json();
+            this._view?.webview.postMessage({ type: 'updateDesign', data: data });
+        } catch (e) {
+            console.error('Failed to refresh design overview:', e);
+        }
     }
 
     private _getHtml() {
@@ -118,6 +135,7 @@ class JulesViewProvider implements vscode.WebviewViewProvider {
             <div class="tabs">
                 <div class="tab active" onclick="showTab('stats')">Stats</div>
                 <div class="tab" onclick="showTab('patterns')">Patterns</div>
+                <div class="tab" onclick="showTab('design')">Design</div>
             </div>
 
             <div id="stats" class="content active">
@@ -135,6 +153,11 @@ class JulesViewProvider implements vscode.WebviewViewProvider {
             <div id="patterns" class="content">
                 <h3>🧠 Learned Patterns</h3>
                 <div id="patterns-container">Loading...</div>
+            </div>
+
+            <div id="design" class="content">
+                <h3>📐 System Design</h3>
+                <div id="design-container">Loading...</div>
             </div>
 
             <script>
@@ -169,6 +192,17 @@ class JulesViewProvider implements vscode.WebviewViewProvider {
                                 <span class="delete-btn" onclick="deletePattern(\${p.id})">🗑️</span>
                             </div>
                         \`).join('');
+                    } else if (message.type === 'updateDesign') {
+                        const d = message.data;
+                        document.getElementById('design-container').innerHTML = \`
+                            <div class="stat">Architecture: <span class="value">\${d.architecture || 'Unknown'}</span></div>
+                            <div class="stat">Modules: <span class="value">\${d.modules.length}</span></div>
+                            <div class="stat">Complexity: <span class="value">\${d.complexity_score}</span></div>
+                            <div style="margin-top: 10px;">
+                                <b>Detected Patterns:</b><br/>
+                                \${d.patterns.map(p => \`<div style="margin-top: 2px; opacity: 0.8;">• \${p}</div>\`).join('')}
+                            </div>
+                        \`;
                     }
                 });
 

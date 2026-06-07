@@ -218,6 +218,16 @@ async def export_lora(output_path: str = Body(default="lora_dataset.jsonl", embe
     except Exception as e:
         raise HTTPException(500, str(e))
 
+@app.get("/architecture/self")
+async def get_self_arch():
+    from project_creator.brain.engineering_brain import EngineeringBrain
+    from project_creator.learning import DB_PATH
+    try:
+        brain = EngineeringBrain(DB_PATH)
+        return brain.get_self_architecture()
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
 @app.get("/learning/context")
 async def get_active_context(path: str):
     from project_creator.memory.retriever import Retriever

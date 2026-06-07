@@ -1,4 +1,5 @@
 from .architecture_memory import ArchitectureMemory
+from .architecture_extractor import ArchitectureExtractor
 from .pattern_memory import PatternMemory
 from .repair_memory import RepairMemory
 from .repository_memory import RepositoryMemory
@@ -12,6 +13,7 @@ import os
 class EngineeringBrain:
     def __init__(self, db_path):
         self.arch_memory = ArchitectureMemory(db_path)
+        self.extractor = ArchitectureExtractor()
         self.pattern_memory = PatternMemory(db_path)
         self.repair_memory = RepairMemory(db_path)
         self.repo_memory = RepositoryMemory(db_path)
@@ -56,6 +58,10 @@ class EngineeringBrain:
         self._generate_design_review(goal, recommendation, tradeoff_analysis)
 
         return strategy_doc, context
+
+    def get_self_architecture(self):
+        """Returns the high-level architecture of Jules itself."""
+        return self.extractor.extract_structure(".")
 
     def _generate_design_review(self, goal, recommendation, tradeoffs):
         report = f"""# 📐 Architecture Review: {goal}

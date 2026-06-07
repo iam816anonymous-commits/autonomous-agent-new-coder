@@ -38,5 +38,12 @@ class PlannerAgent:
         # Augment with learned style and preference patterns
         full_prompt = self.retriever.augment_prompt(full_prompt, task_type="planning")
 
+        # Self-Architecture Awareness
+        from project_creator.brain.engineering_brain import EngineeringBrain
+        import json
+        brain = EngineeringBrain(DB_PATH)
+        self_arch = brain.get_self_architecture()
+        full_prompt = f"SELF ARCHITECTURE CONTEXT:\n{json.dumps(self_arch)}\n\n{full_prompt}"
+
         response = self.router.generate_blueprint(full_prompt, system_prompt)
         return extract_json(response)

@@ -52,8 +52,14 @@ class ArchitectureExtractor:
                     self._add_pattern(structure, "JWT Authentication")
                 if "@app.get" in content or "router" in content:
                     self._add_pattern(structure, "REST API Router")
+                if "FastAPI" in content and "Uvicorn" in content:
+                    self._add_pattern(structure, "FastAPI Backend Service")
                 if "Provider" in content and ("router" in content.lower() or "llm" in content.lower()):
                     self._add_pattern(structure, "Provider Routing")
+                if "vscode" in content.lower() and "extension" in content.lower():
+                    self._add_pattern(structure, "VS Code Extension")
+                if "webview" in content.lower() and "html" in content.lower():
+                    self._add_pattern(structure, "Webview UI Component")
                 if "docker-compose" in content or "Dockerfile" in files:
                     self._add_pattern(structure, "Containerized Deployment")
                 if "pytest" in content or "unittest" in content:

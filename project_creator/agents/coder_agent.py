@@ -34,6 +34,12 @@ class CoderAgent:
         # Augment with learned style and path-aware context
         prompt = self.retriever.augment_prompt(prompt, task_type="coding", path=file_path)
 
+        # Self-Architecture Awareness
+        from project_creator.brain.engineering_brain import EngineeringBrain
+        brain = EngineeringBrain(DB_PATH)
+        self_arch = brain.get_self_architecture()
+        prompt = f"SELF ARCHITECTURE CONTEXT:\n{json.dumps(self_arch)}\n\n{prompt}"
+
         content = self.router.generate(prompt, system_prompt)
         if content.startswith("```"):
             lines = content.splitlines()

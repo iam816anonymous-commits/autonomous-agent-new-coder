@@ -12,8 +12,15 @@ class GeminiProvider:
         self.config = get_config()
         self.model_name = self.config.gemini_model
 
-    def generate(self, prompt, system_prompt=None, response_mime_type=None):
-        contents = f"{system_prompt}\n\n{prompt}" if system_prompt else prompt
+    def generate(self, prompt, system_prompt=None, response_mime_type=None, image_bytes=None, image_mime="image/png"):
+        parts = []
+        if system_prompt:
+            parts.append(system_prompt)
+
+        if image_bytes:
+            parts.append(types.Part.from_bytes(data=image_bytes, mime_type=image_mime))
+
+        parts.append(prompt)
 
         config_args = {}
         if response_mime_type:
@@ -21,7 +28,7 @@ class GeminiProvider:
 
         response = self.client.models.generate_content(
             model=self.model_name,
-            contents=contents,
+            contents=parts,
             config=types.GenerateContentConfig(**config_args) if config_args else None
         )
         return response.text.strip()

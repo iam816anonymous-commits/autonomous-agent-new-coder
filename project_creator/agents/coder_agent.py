@@ -7,6 +7,15 @@ class CoderAgent:
         self.router = router
         self.retriever = Retriever(DB_PATH)
 
+    def generate_from_image(self, image_bytes, description):
+        system_prompt = """
+        You are a frontend expert. Analyze the provided image and generate the source code for a frontend implementation.
+        - Focus on visual accuracy, layout, and styling.
+        - Use modern frameworks (e.g. React, Tailwind CSS) unless specified otherwise.
+        - Output ONLY source code. No markdown.
+        """
+        return self.router.generate_with_vision(description, image_bytes, system_prompt)
+
     def generate_file(self, file_path, description, blueprint, context, strategy_doc=None):
         system_prompt = """
         You are an elite senior software engineer with a focus on CYBERSECURITY.

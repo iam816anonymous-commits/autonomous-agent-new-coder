@@ -97,6 +97,22 @@ async def get_manifest():
     if not state.orch: return {}
     return state.orch.manifest.load()
 
+@app.post("/vision/generate")
+async def vision_generate(description: str = Body(...), image_path: str = Body(...)):
+    if not os.path.exists(image_path):
+        raise HTTPException(404, "Image file not found")
+
+    try:
+        with open(image_path, "rb") as f:
+            image_bytes = f.read()
+
+        from project_creator.agents.coder_agent import CoderAgent
+        agent = CoderAgent(state.router)
+        code = agent.generate_from_image(image_bytes, description)
+        return {"code": code}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
 @app.post("/events")
 async def receive_event(event: Dict[str, Any]):
     collector.collect(event.get("type", "UNKNOWN"), event.get("data", {}))

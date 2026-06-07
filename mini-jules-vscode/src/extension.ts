@@ -70,6 +70,19 @@ class JulesViewProvider implements vscode.WebviewViewProvider {
                     const data = await res.json();
                     vscode.window.showInformationMessage(`Exported ${data.count} examples to ${data.path}`);
                     break;
+                case 'generateFromImage':
+                    try {
+                        const vres = await fetch(`${this._baseUrl}/vision/generate`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ description: message.prompt, image_path: message.path })
+                        });
+                        const vdata = await vres.json();
+                        this._view?.webview.postMessage({ type: 'updateVision', code: vdata.code });
+                    } catch (e) {
+                        this._view?.webview.postMessage({ type: 'updateVision', code: 'Error: ' + e });
+                    }
+                    break;
             }
         });
     }
@@ -136,6 +149,7 @@ class JulesViewProvider implements vscode.WebviewViewProvider {
                 <div class="tab active" onclick="showTab('stats')">Stats</div>
                 <div class="tab" onclick="showTab('patterns')">Patterns</div>
                 <div class="tab" onclick="showTab('design')">Design</div>
+                <div class="tab" onclick="showTab('vision')">Vision</div>
             </div>
 
             <div id="stats" class="content active">
@@ -158,6 +172,15 @@ class JulesViewProvider implements vscode.WebviewViewProvider {
             <div id="design" class="content">
                 <h3>📐 System Design</h3>
                 <div id="design-container">Loading...</div>
+            </div>
+
+            <div id="vision" class="content">
+                <h3>🖼️ Vision-to-Code</h3>
+                <p>Generate frontend from an image.</p>
+                <input type="text" id="image-path" placeholder="Local Image Path" style="width: 100%; margin-bottom: 5px;"/>
+                <textarea id="vision-prompt" placeholder="Describe requirements..." style="width: 100%; height: 60px;"></textarea>
+                <button onclick="generateFromImage()" style="width: 100%; margin-top: 5px;">Generate</button>
+                <div id="vision-result" style="margin-top: 10px; font-family: monospace; white-space: pre-wrap; font-size: 10px; background: #222; padding: 5px;"></div>
             </div>
 
             <script>
@@ -203,6 +226,8 @@ class JulesViewProvider implements vscode.WebviewViewProvider {
                                 \${d.patterns.map(p => \`<div style="margin-top: 2px; opacity: 0.8;">• \${p}</div>\`).join('')}
                             </div>
                         \`;
+                    } else if (message.type === 'updateVision') {
+                        document.getElementById('vision-result').innerText = message.code;
                     }
                 });
 
@@ -217,6 +242,13 @@ class JulesViewProvider implements vscode.WebviewViewProvider {
 
                 function exportLora() {
                     vscode.postMessage({ command: 'exportLora' });
+                }
+
+                function generateFromImage() {
+                    const path = document.getElementById('image-path').value;
+                    const prompt = document.getElementById('vision-prompt').value;
+                    document.getElementById('vision-result').innerText = 'Analyzing...';
+                    vscode.postMessage({ command: 'generateFromImage', path: path, prompt: prompt });
                 }
 
                 // Initial load

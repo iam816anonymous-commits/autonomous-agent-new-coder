@@ -28,3 +28,8 @@ class ProviderRouter:
         blueprint_sequence = [p for p in [self.gemini, self.chatgpt, self.ollama] if p is not None]
         engine = FallbackEngine(blueprint_sequence)
         return engine.execute_with_fallback(prompt, system_prompt, response_mime_type='application/json')
+
+    def generate_with_vision(self, prompt, image_bytes, system_prompt=None):
+        if not self.gemini:
+            raise Exception("Vision requires GeminiProvider (API_KEY not set)")
+        return self.gemini.generate(prompt, system_prompt=system_prompt, image_bytes=image_bytes)

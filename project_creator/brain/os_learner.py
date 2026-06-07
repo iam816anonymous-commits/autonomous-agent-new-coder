@@ -36,7 +36,10 @@ class OSLearner:
             orig_source = getattr(pattern_learner, 'current_source', 'SELF')
             pattern_learner.current_source = source_type
 
-            # 2. Extract knowledge
+            # 2. Sanitize against prompt injection before ingestion
+            self._sanitize_ingestion(temp_path)
+
+            # 3. Extract knowledge
             knowledge = self.brain.ingest_repository(temp_path)
 
             # 3. Restore original source
@@ -50,4 +53,13 @@ class OSLearner:
         finally:
             if os.path.exists(temp_path):
                 shutil.rmtree(temp_path)
-                print(f"🗑️ Brain: Cleaned up {temp_path}")
+
+    def _sanitize_ingestion(self, path):
+        """Deletes potential prompt injection files from untrusted repos."""
+        forbidden_files = ["PROMPT.md", "SYSTEM_PROMPT.md", "INSTRUCTIONS.md"]
+        for root, _, files in os.walk(path):
+            for f in files:
+                if f.upper() in [ff.upper() for f in forbidden_files] or "IGNORE" in f.upper():
+                    file_path = os.path.join(root, f)
+                    os.remove(file_path)
+                    print(f"🛡️  OSLearner: Deleted potentially malicious instruction file: {f}")

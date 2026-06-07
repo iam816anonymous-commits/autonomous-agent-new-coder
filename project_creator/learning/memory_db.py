@@ -133,6 +133,8 @@ class CodingMemory:
 
     # Restoration of necessary v13 methods
     def learn_pattern(self, p_type, content, source_type="SELF"):
+        import logging
+        logging.info(f"MEMORY: Learning pattern {p_type} from {source_type}")
         with self.db.transaction() as cursor:
             cursor.execute('SELECT id, frequency FROM patterns WHERE pattern_type = ? AND content = ? AND source_type = ?', (p_type, content, source_type))
             row = cursor.fetchone()
@@ -142,6 +144,8 @@ class CodingMemory:
                 cursor.execute('INSERT INTO patterns (pattern_type, content, source_type) VALUES (?, ?, ?)', (p_type, content, source_type))
 
     def add_snippet(self, path, content, status, source_type="SELF"):
+        import logging
+        logging.info(f"MEMORY: Adding snippet {path} with status {status}")
         self.db.execute_commit('INSERT INTO snippets (file_path, content, status, source_type) VALUES (?, ?, ?, ?)', (path, content, status, source_type))
 
     def get_top_patterns(self, p_type, limit=10):

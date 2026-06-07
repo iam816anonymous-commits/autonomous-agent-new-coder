@@ -39,6 +39,7 @@ class GlobalState:
         self._router = None
         self.orch = None
         self.monitor = None
+        self.pending_commands = {}
 
     @property
     def router(self):
@@ -251,6 +252,17 @@ async def export_lora(output_path: str = Body(default="lora_dataset.jsonl", embe
         return {"status": "ok", "count": count, "path": output_path}
     except Exception as e:
         raise HTTPException(500, str(e))
+
+@app.get("/security/pending")
+async def get_pending_commands():
+    return state.pending_commands
+
+@app.post("/security/approve/{cmd_id}")
+async def approve_command(cmd_id: str):
+    if cmd_id in state.pending_commands:
+        state.pending_commands[cmd_id]['status'] = 'approved'
+        return {"status": "approved"}
+    raise HTTPException(404, "Command not found")
 
 @app.get("/architecture/self")
 async def get_self_arch():

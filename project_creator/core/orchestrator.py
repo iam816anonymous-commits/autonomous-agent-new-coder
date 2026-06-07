@@ -133,7 +133,15 @@ class Orchestrator:
         return self.gen_coordinator.generate_project_file(file_meta, self.blueprint, self.generated_files, strategy_doc=strategy_doc)
 
     def apply(self, path: str, content: str):
+        import logging
+        from project_creator.learning.constitution import LearningConstitution
+        if LearningConstitution.has_forbidden_content(content):
+            logging.warning(f"SECURITY: Blocked write to {path} due to forbidden patterns (Secrets/Injection)")
+            print(f"🛡️  Orchestrator: Blocked write to {path} due to forbidden patterns (Secrets/Injection)")
+            return False
+
         if self.storage.write_file(path, content, interactive=False):
+            logging.info(f"WORKSPACE: Applied file {path}")
             self.generated_files[path] = content
             self.manifest.add_approval(path)
             self.session.save_session(self.blueprint, self.generated_files, [], [p for p in self.generated_files.keys()])

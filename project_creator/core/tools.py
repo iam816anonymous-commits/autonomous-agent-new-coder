@@ -12,7 +12,29 @@ class ToolExecutor:
         # Sandbox Constitution: Strictly Whitelisted Bases
         self.allowed_bases = {"pytest", "ruff", "black", "python3"}
 
-    def execute(self, command):
+    def execute(self, command, needs_approval=None):
+        if needs_approval is None:
+            # Auto-detect risk: e.g. python3 on external files
+            if command.startswith("python3"): needs_approval = True
+
+        if needs_approval:
+            import uuid
+            import time
+            from project_creator.server import state
+            cmd_id = str(uuid.uuid4())
+            state.pending_commands[cmd_id] = {"command": command, "status": "pending"}
+            print(f"🛑 Security: Command requires human approval: {command}")
+
+            # Wait for approval (polling global state for simplicity in this bridge)
+            start_wait = time.time()
+            while time.time() - start_wait < 60: # 60s timeout
+                if state.pending_commands.get(cmd_id, {}).get('status') == 'approved':
+                    del state.pending_commands[cmd_id]
+                    break
+                time.sleep(1)
+            else:
+                return {"error": "Security Rejection: Human approval timeout."}
+
         try:
             cmd_args = shlex.split(command)
         except ValueError as e:
@@ -30,8 +52,12 @@ class ToolExecutor:
         # 2. Forbidden pattern verification
         forbidden = {
             "sudo", "chmod", "chown", "env", ".env", "passwd", "shadow",
-            "rm -rf /", "git", "pip", "sh", "bash", "curl", "wget", "eval", "exec"
+            "rm -rf", "git", "pip", "sh", "bash", "curl", "wget", "eval", "exec",
+            "systemctl", "docker", "ssh", "scp", "nc", "nmap"
         }
+
+        # 3. High-Risk commands requiring approval
+        high_risk = {"python3", "pytest", "ruff", "black"} # While allowed, we might want to flag specific usages
         for arg in cmd_args:
             if any(p in arg.lower() for p in forbidden):
                  logging.warning(f"REJECTED PATTERN: {command}")

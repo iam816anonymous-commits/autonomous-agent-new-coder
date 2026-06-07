@@ -72,4 +72,4 @@ class WorkspaceMonitor:
                     })
                     print(f"🕵️  WorkspaceMonitor: Detected manual edit in {path}")
         except Exception as e:
-            pass
+            print(f"⚠️  WorkspaceMonitor error on {path}: {e}")

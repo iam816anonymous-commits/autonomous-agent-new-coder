@@ -167,6 +167,24 @@ async def trigger_scan(path: str = Body(default=".", embed=True)):
     except Exception as e:
         raise HTTPException(500, str(e))
 
+@app.post("/learning/ingest")
+async def ingest_repository(path: str = Body(..., embed=True)):
+    from project_creator.brain.repository_brain import RepositoryBrain
+    from project_creator.brain.os_learner import OSLearner
+    from project_creator.learning import DB_PATH
+    try:
+        brain = RepositoryBrain(DB_PATH)
+        learner = OSLearner(brain)
+
+        if path.startswith("http"):
+            knowledge = learner.learn_from_github(path)
+            return {"status": "ingested", "details": knowledge}
+        else:
+            knowledge = learner.learn_from_local(path)
+            return {"status": "ingested", "details": knowledge}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
 @app.put("/learning/patterns/{pattern_id}")
 async def update_pattern(pattern_id: int, content: str = Body(..., embed=True)):
     from project_creator.learning import DB_PATH

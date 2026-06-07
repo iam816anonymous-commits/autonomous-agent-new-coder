@@ -7,6 +7,19 @@ class OSLearner:
     def __init__(self, brain: RepositoryBrain):
         self.brain = brain
 
+    def learn_from_local(self, local_path, source_type="EXTERNAL"):
+        print(f"📂 Brain: Ingesting Local Codebase {local_path} as {source_type}")
+        if not os.path.exists(local_path):
+            raise Exception(f"Path {local_path} does not exist")
+
+        from project_creator.learning import pattern_learner
+        orig_source = getattr(pattern_learner, 'current_source', 'SELF')
+        pattern_learner.current_source = source_type
+
+        knowledge = self.brain.ingest_repository(local_path)
+        pattern_learner.current_source = orig_source
+        return knowledge
+
     def learn_from_github(self, repo_url, source_type="EXTERNAL"):
         repo_name = repo_url.split("/")[-1].replace(".git", "")
         temp_path = os.path.join("temp_learn", repo_name)

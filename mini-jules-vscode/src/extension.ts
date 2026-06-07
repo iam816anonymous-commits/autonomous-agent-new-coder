@@ -83,6 +83,19 @@ class JulesViewProvider implements vscode.WebviewViewProvider {
                         this._view?.webview.postMessage({ type: 'updateVision', code: 'Error: ' + e });
                     }
                     break;
+                case 'ingestRepo':
+                    try {
+                        const ires = await fetch(`${this._baseUrl}/learning/ingest`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ path: message.path })
+                        });
+                        const idata = await ires.json();
+                        this._view?.webview.postMessage({ type: 'updateIngest', status: idata.status });
+                    } catch (e) {
+                        this._view?.webview.postMessage({ type: 'updateIngest', status: 'Error: ' + e });
+                    }
+                    break;
             }
         });
     }
@@ -150,6 +163,7 @@ class JulesViewProvider implements vscode.WebviewViewProvider {
                 <div class="tab" onclick="showTab('patterns')">Patterns</div>
                 <div class="tab" onclick="showTab('design')">Design</div>
                 <div class="tab" onclick="showTab('vision')">Vision</div>
+                <div class="tab" onclick="showTab('learn')">Learn</div>
             </div>
 
             <div id="stats" class="content active">
@@ -181,6 +195,14 @@ class JulesViewProvider implements vscode.WebviewViewProvider {
                 <textarea id="vision-prompt" placeholder="Describe requirements..." style="width: 100%; height: 60px;"></textarea>
                 <button onclick="generateFromImage()" style="width: 100%; margin-top: 5px;">Generate</button>
                 <div id="vision-result" style="margin-top: 10px; font-family: monospace; white-space: pre-wrap; font-size: 10px; background: #222; padding: 5px;"></div>
+            </div>
+
+            <div id="learn" class="content">
+                <h3>📚 Deep Ingestion</h3>
+                <p>Learn entire codebase (Git or Local Path).</p>
+                <input type="text" id="ingest-path" placeholder="Repo URL or Local Path" style="width: 100%; margin-bottom: 5px;"/>
+                <button onclick="ingestRepo()" style="width: 100%; margin-top: 5px;">Ingest & Learn</button>
+                <div id="ingest-status" style="margin-top: 10px; font-size: 10px; opacity: 0.8;">Ready.</div>
             </div>
 
             <script>
@@ -228,6 +250,8 @@ class JulesViewProvider implements vscode.WebviewViewProvider {
                         \`;
                     } else if (message.type === 'updateVision') {
                         document.getElementById('vision-result').innerText = message.code;
+                    } else if (message.type === 'updateIngest') {
+                        document.getElementById('ingest-status').innerText = message.status;
                     }
                 });
 
@@ -249,6 +273,12 @@ class JulesViewProvider implements vscode.WebviewViewProvider {
                     const prompt = document.getElementById('vision-prompt').value;
                     document.getElementById('vision-result').innerText = 'Analyzing...';
                     vscode.postMessage({ command: 'generateFromImage', path: path, prompt: prompt });
+                }
+
+                function ingestRepo() {
+                    const path = document.getElementById('ingest-path').value;
+                    document.getElementById('ingest-status').innerText = 'Ingesting codebase...';
+                    vscode.postMessage({ command: 'ingestRepo', path: path });
                 }
 
                 // Initial load

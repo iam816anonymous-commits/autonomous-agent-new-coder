@@ -87,16 +87,21 @@ class CodingMemory:
             ''')
 
     def _migrate_schema(self):
-        """Ensures all tables have the source_type column."""
-        tables_to_check = ['patterns', 'snippets', 'heuristics']
-        for table in tables_to_check:
+        """Ensures all tables have the source_type and last_seen columns."""
+        migrations = [
+            ('patterns', 'source_type', 'TEXT DEFAULT "SELF"'),
+            ('patterns', 'last_seen', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP'),
+            ('snippets', 'source_type', 'TEXT DEFAULT "SELF"'),
+            ('heuristics', 'source_type', 'TEXT DEFAULT "SELF"')
+        ]
+        for table, column, definition in migrations:
             try:
                 columns = [col[1] for col in self.db.execute_query(f"PRAGMA table_info({table})")]
-                if columns and 'source_type' not in columns:
-                    print(f"🛠️ Migrating table {table}: adding source_type")
-                    self.db.execute_commit(f"ALTER TABLE {table} ADD COLUMN source_type TEXT DEFAULT 'SELF'")
+                if columns and column not in columns:
+                    print(f"🛠️ Migrating table {table}: adding {column}")
+                    self.db.execute_commit(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
             except Exception as e:
-                print(f"⚠️ Migration check skipped for {table}: {e}")
+                print(f"⚠️ Migration check skipped for {table}.{column}: {e}")
 
     def log_night_activity(self, tasks, patterns, quota, growth):
         self.db.execute_commit('''

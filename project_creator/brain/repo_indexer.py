@@ -20,6 +20,10 @@ class RepoIndexer:
                             file_map[rel_path] = content
                             # Feed to underlying pattern memory
                             self.memory.add_snippet(rel_path, content, "INDEXED")
+
+                            # Also feed to PatternLearner for deep structural learning
+                            from project_creator.learning import pattern_learner
+                            pattern_learner.learn_from_file({"path": rel_path, "content": content})
                     except Exception as e:
                         print(f"⚠️  Indexer skip {rel_path}: {e}")
         return file_map

@@ -1,14 +1,14 @@
-from .architecture_memory import ArchitectureMemory
+from .architecture_consultant import ArchitectureConsultant
 from .architecture_extractor import ArchitectureExtractor
+from .architecture_memory import ArchitectureMemory
+from .architecture_synthesizer import ArchitectureSynthesizer
 from .pattern_memory import PatternMemory
 from .repair_memory import RepairMemory
+from .repository_comparison import RepositoryComparison
 from .repository_memory import RepositoryMemory
 from .strategy_builder import StrategyBuilder
-from .architecture_consultant import ArchitectureConsultant
-from .repository_comparison import RepositoryComparison
-from .architecture_synthesizer import ArchitectureSynthesizer
 from .tradeoff_analyzer import TradeoffAnalyzer
-import os
+
 
 class EngineeringBrain:
     def __init__(self, db_path):
@@ -37,12 +37,18 @@ class EngineeringBrain:
         sim_repos = self.repo_memory.retrieve_relevant(goal)
 
         context = {
-            "recommended_arch": sim_arch[0].get('architecture') if sim_arch else "Standard Modular",
-            "recommended_deps": sim_arch[0].get('dependencies', []) if sim_arch else [],
-            "failure_patterns": [r.get('error') for r in sim_repairs if r.get('success_rate', 1.0) < 0.5],
-            "repair_strategies": [r.get('repair') for r in sim_repairs if r.get('success_rate', 0.0) > 0.7],
-            "relevant_repos": [r.get('repository') for r in sim_repos],
-            "repository_knowledge": sim_repos
+            "recommended_arch": (
+                sim_arch[0].get("architecture") if sim_arch else "Standard Modular"
+            ),
+            "recommended_deps": sim_arch[0].get("dependencies", []) if sim_arch else [],
+            "failure_patterns": [
+                r.get("error") for r in sim_repairs if r.get("success_rate", 1.0) < 0.5
+            ],
+            "repair_strategies": [
+                r.get("repair") for r in sim_repairs if r.get("success_rate", 0.0) > 0.7
+            ],
+            "relevant_repos": [r.get("repository") for r in sim_repos],
+            "repository_knowledge": sim_repos,
         }
 
         # 1. Advanced Architecture Intelligence
@@ -56,12 +62,19 @@ class EngineeringBrain:
         if len(sim_arch) == 0 and len(sim_repos) == 0:
             print("🌐 Brain: Context sparse, searching web for documentation...")
             try:
-                from project_creator.router.provider_router import ProviderRouter
+                from project_creator.router.provider_router import \
+                    ProviderRouter
+
                 router = ProviderRouter()
                 search_query = f"Architecture and implementation details for {goal} using modern libraries"
-                external_docs = router.gemini.generate(search_query, enable_search=True) if router.gemini else ""
+                external_docs = (
+                    router.gemini.generate(search_query, enable_search=True)
+                    if router.gemini
+                    else ""
+                )
                 context["external_documentation"] = external_docs
-            except: pass
+            except:
+                pass
 
         strategy_doc = self.strategy_builder.generate_strategy_document(goal, context)
 
@@ -91,8 +104,15 @@ class EngineeringBrain:
 ## 🛡️ Security & Reliability
 - **Known Pitfalls**: {', '.join(recommendation['known_pitfalls']) if recommendation['known_pitfalls'] else 'None identified'}
 """
-        with open("architecture_review.md", "w") as f:
-            f.write(report)
+        try:
+            from project_creator.core.storage import Storage
+
+            storage = Storage(".")
+            storage.write_file("architecture_review.md", report)
+        except:
+            # Fallback if storage fails (e.g. during brain initialization)
+            with open("architecture_review.md", "w") as f:
+                f.write(report)
 
     def learn_from_completed_task(self, session_data):
         """
@@ -102,18 +122,18 @@ class EngineeringBrain:
         # (This is triggered by Orchestrator after project completion)
 
         # 1. Update Architecture
-        blueprint = session_data.get('blueprint', {})
+        blueprint = session_data.get("blueprint", {})
         self.arch_memory.store_architecture(
-            project_type=blueprint.get('type', 'custom'),
-            architecture=blueprint.get('architecture', 'modular'),
-            dependencies=[] # Extracted from manifest in real impl
+            project_type=blueprint.get("type", "custom"),
+            architecture=blueprint.get("architecture", "modular"),
+            dependencies=[],  # Extracted from manifest in real impl
         )
 
         # 2. Update Repairs
-        for repair in session_data.get('repairs', []):
+        for repair in session_data.get("repairs", []):
             self.repair_memory.store_repair(
-                error=repair['issue'],
+                error=repair["issue"],
                 traceback="",
                 root_cause="Logic error detected during dry-run",
-                repair=repair['patch']
+                repair=repair["patch"],
             )

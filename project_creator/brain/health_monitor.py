@@ -1,6 +1,8 @@
 import os
 import sqlite3
+
 from project_creator.learning import DB_PATH
+
 
 class HealthMonitor:
     def __init__(self, db_path=DB_PATH):
@@ -12,23 +14,27 @@ class HealthMonitor:
             cur = conn.cursor()
 
             # Source Distribution
-            cur.execute("SELECT source_type, COUNT(*) FROM patterns GROUP BY source_type")
+            cur.execute(
+                "SELECT source_type, COUNT(*) FROM patterns GROUP BY source_type"
+            )
             dist = dict(cur.fetchall())
 
             total = sum(dist.values())
-            self_pct = (dist.get('SELF', 0) / total * 100) if total > 0 else 0
-            ext_pct = (dist.get('EXTERNAL', 0) / total * 100) if total > 0 else 0
+            self_pct = (dist.get("SELF", 0) / total * 100) if total > 0 else 0
+            ext_pct = (dist.get("EXTERNAL", 0) / total * 100) if total > 0 else 0
 
             # Diversity Score (unique patterns / total usages)
             cur.execute("SELECT COUNT(DISTINCT content), SUM(frequency) FROM patterns")
             unique, total_usage = cur.fetchone()
-            diversity = (unique / total_usage) if total_usage and total_usage > 0 else 1.0
+            diversity = (
+                (unique / total_usage) if total_usage and total_usage > 0 else 1.0
+            )
 
             return {
                 "self_knowledge_pct": round(self_pct, 1),
                 "external_knowledge_pct": round(ext_pct, 1),
                 "diversity_score": round(diversity, 2),
-                "status": "HEALTHY" if diversity > 0.3 and ext_pct > 30 else "BIASED"
+                "status": "HEALTHY" if diversity > 0.3 and ext_pct > 30 else "BIASED",
             }
 
     def detect_contradictions(self, p_type):
@@ -57,7 +63,13 @@ Current Weights:
 - External: 1.0
 - Self: 0.4
 """
-        os.makedirs('reports', exist_ok=True)
-        with open('reports/learning_health.md', 'w') as f:
-            f.write(report)
+        try:
+            from project_creator.core.storage import Storage
+
+            storage = Storage(".")
+            storage.write_file("reports/learning_health.md", report)
+        except:
+            os.makedirs("reports", exist_ok=True)
+            with open("reports/learning_health.md", "w") as f:
+                f.write(report)
         return report

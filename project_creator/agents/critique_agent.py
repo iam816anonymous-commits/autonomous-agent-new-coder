@@ -1,5 +1,6 @@
 from project_creator.core.utils import extract_json
 
+
 class CritiqueAgent:
     def __init__(self, router):
         self.router = router
@@ -20,4 +21,8 @@ class CritiqueAgent:
         result = extract_json(response)
         if result:
             return result
-        return {"verdict": "FAIL", "issues": ["Failed to parse critique response."], "security_score": 0}
+        return {
+            "verdict": "FAIL",
+            "issues": ["Failed to parse critique response."],
+            "security_score": 0,
+        }

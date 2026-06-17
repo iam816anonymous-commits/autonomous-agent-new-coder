@@ -1,8 +1,7 @@
 import os
-import json
-import time
-import random
+
 from groq import Groq
+
 
 class GroqProvider:
     def __init__(self, api_key):
@@ -17,8 +16,5 @@ class GroqProvider:
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": prompt})
 
-        completion = self.client.chat.completions.create(
-            model=model,
-            messages=messages
-        )
+        completion = self.client.chat.completions.create(model=model, messages=messages)
         return completion.choices[0].message.content

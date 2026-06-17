@@ -1,15 +1,19 @@
-import os
 import json
+import os
+
 
 class SWEBenchLoader:
     def __init__(self, local_data_path=None):
-        self.data_path = local_data_path or os.path.join("datasets", "swebench", "swe-bench.json")
+        self.data_path = local_data_path or os.path.join(
+            "datasets", "swebench", "swe-bench.json"
+        )
 
     def load_samples(self):
         if os.path.exists(self.data_path):
-            with open(self.data_path, 'r') as f:
+            with open(self.data_path, "r") as f:
                 return json.load(f)
         return []
+
 
 class RepairExtractor:
     def extract_lessons(self, sample):
@@ -20,5 +24,5 @@ class RepairExtractor:
             "error": sample.get("problem_statement", "Unknown issue"),
             "root_cause": "Extracted from SWE-Bench historical record",
             "repair": sample.get("patch", "No patch available"),
-            "repository": sample.get("repo", "unknown")
+            "repository": sample.get("repo", "unknown"),
         }

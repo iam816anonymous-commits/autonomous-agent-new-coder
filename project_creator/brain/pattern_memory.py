@@ -1,5 +1,6 @@
 from .base_memory import BaseBrainMemory
 
+
 class PatternMemory(BaseBrainMemory):
     def __init__(self, db_path):
         super().__init__(db_path)

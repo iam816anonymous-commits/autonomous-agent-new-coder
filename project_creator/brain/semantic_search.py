@@ -1,5 +1,7 @@
 import os
+
 from project_creator.memory.vector_store import VectorStore
+
 
 class SemanticSearch:
     def __init__(self, db_path):
@@ -9,11 +11,14 @@ class SemanticSearch:
     def index_knowledge(self, path, knowledge):
         """Indexes architectural findings semantically."""
         text = f"Repo: {path}\nArchitecture: {knowledge['architecture']['type']}\nDependencies: {', '.join(knowledge['dependencies'])}"
-        self.vector_store.add(text, {
-            "path": path,
-            "type": "repo_knowledge",
-            "arch": knowledge['architecture']['type']
-        })
+        self.vector_store.add(
+            text,
+            {
+                "path": path,
+                "type": "repo_knowledge",
+                "arch": knowledge["architecture"]["type"],
+            },
+        )
 
     def find_similar_projects(self, goal):
         return self.vector_store.search(goal, top_k=3)

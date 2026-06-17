@@ -1,5 +1,3 @@
-import json
-
 class StrategyBuilder:
     def __init__(self, brain):
         self.brain = brain
@@ -20,18 +18,22 @@ class StrategyBuilder:
 
         # 3. Known Failure Patterns
         doc += "## ⚠️ Known Failure Patterns (Avoid)\n"
-        failures = context.get('failure_patterns', [])
-        if not failures: doc += "- No historical failures for this type.\n"
+        failures = context.get("failure_patterns", [])
+        if not failures:
+            doc += "- No historical failures for this type.\n"
         else:
-            for f in failures: doc += f"- {f}\n"
+            for f in failures:
+                doc += f"- {f}\n"
         doc += "\n"
 
         # 4. Successful Repair Strategies
         doc += "## 🛠️ Successful Repair Strategies (Reuse)\n"
-        repairs = context.get('repair_strategies', [])
-        if not repairs: doc += "- No relevant repair patterns found.\n"
+        repairs = context.get("repair_strategies", [])
+        if not repairs:
+            doc += "- No relevant repair patterns found.\n"
         else:
-            for r in repairs: doc += f"- {r}\n"
+            for r in repairs:
+                doc += f"- {r}\n"
         doc += "\n"
 
         # 5. Security & Implementation Strategy

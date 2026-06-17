@@ -1,5 +1,6 @@
 from .base_memory import BaseBrainMemory
 
+
 class RepairMemory(BaseBrainMemory):
     def __init__(self, db_path):
         super().__init__(db_path, index_name="repair")
@@ -11,7 +12,7 @@ class RepairMemory(BaseBrainMemory):
             "traceback": traceback,
             "root_cause": root_cause,
             "repair": repair,
-            "success_rate": success_rate
+            "success_rate": success_rate,
         }
         # Store in vector for semantic retrieval
         text_context = f"Error: {error}\nTraceback: {traceback}\nRoot Cause: {root_cause}\nRepair: {repair}"

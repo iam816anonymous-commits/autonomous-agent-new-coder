@@ -1,7 +1,9 @@
+import datetime
+import os
+
 from project_creator.learning.memory_db import CodingMemory
 from project_creator.memory.vector_store import VectorStore
-import os
-import datetime
+
 
 class Retriever:
     def __init__(self, db_path):
@@ -13,14 +15,24 @@ class Retriever:
         """Assembles a context block of learned patterns to augment LLM prompts."""
         framework_hint = None
         if query:
-            if "streamlit" in query.lower(): framework_hint = "streamlit"
-            elif "fastapi" in query.lower(): framework_hint = "fastapi"
+            if "streamlit" in query.lower():
+                framework_hint = "streamlit"
+            elif "fastapi" in query.lower():
+                framework_hint = "fastapi"
 
         # Weighted Retrieval: Prefer EXTERNAL (60%) over SELF (40%)
-        imports = self._get_weighted_patterns('import', limit=5, framework_hint=framework_hint)
-        naming = self._get_weighted_patterns('naming', limit=1, framework_hint=framework_hint)
-        api_styles = self._get_weighted_patterns('api_style', limit=3, framework_hint=framework_hint)
-        idioms = self._get_weighted_patterns('idiom', limit=5, framework_hint=framework_hint)
+        imports = self._get_weighted_patterns(
+            "import", limit=5, framework_hint=framework_hint
+        )
+        naming = self._get_weighted_patterns(
+            "naming", limit=1, framework_hint=framework_hint
+        )
+        api_styles = self._get_weighted_patterns(
+            "api_style", limit=3, framework_hint=framework_hint
+        )
+        idioms = self._get_weighted_patterns(
+            "idiom", limit=5, framework_hint=framework_hint
+        )
 
         context_lines = ["User Preferred Patterns:"]
         if imports:
@@ -37,7 +49,8 @@ class Retriever:
     def _get_weighted_patterns(self, p_type, limit=5, framework_hint=None):
         # We now query content, source_type, frequency, and last_seen
         raw_rows = self.memory.get_top_patterns(p_type, limit=limit * 2)
-        if not raw_rows: return []
+        if not raw_rows:
+            return []
 
         # Scoring: Score = Frequency * SourceWeight * RecencyFactor
         # EXTERNAL = 1.0, USER = 0.8, SWE_BENCH = 0.7, SELF = 0.4
@@ -53,11 +66,16 @@ class Retriever:
             recency_factor = 1.0
             if last_seen:
                 try:
-                    last_seen_dt = datetime.datetime.strptime(last_seen, "%Y-%m-%d %H:%M:%S")
+                    last_seen_dt = datetime.datetime.strptime(
+                        last_seen, "%Y-%m-%d %H:%M:%S"
+                    )
                     days_diff = (now - last_seen_dt).days
-                    if days_diff == 0: recency_factor = 1.5
-                    elif days_diff < 7: recency_factor = 1.2
-                except: pass
+                    if days_diff == 0:
+                        recency_factor = 1.5
+                    elif days_diff < 7:
+                        recency_factor = 1.2
+                except:
+                    pass
 
             score = freq * weight * recency_factor
 
@@ -80,10 +98,13 @@ class Retriever:
         semantic_results = self.vector_store.search(search_query, top_k=3)
         semantic_context = ""
         if semantic_results:
-            semantic_context = "\nSimilar Past Examples:\n" + "\n---\n".join([
-                f"Path: {r['path']}\nContent Snippet:\n{r.get('content', '')[:200]}"
-                for r in semantic_results if 'path' in r
-            ])
+            semantic_context = "\nSimilar Past Examples:\n" + "\n---\n".join(
+                [
+                    f"Path: {r['path']}\nContent Snippet:\n{r.get('content', '')[:200]}"
+                    for r in semantic_results
+                    if "path" in r
+                ]
+            )
 
         if learned_context or semantic_context:
             return f"{learned_context}{semantic_context}\n\nTask: {base_prompt}"

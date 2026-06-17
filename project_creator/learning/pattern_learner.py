@@ -1,15 +1,19 @@
 import ast
+import os
 import re
+
+from project_creator.memory.vector_store import VectorStore
+
+from .constitution import LearningConstitution
 from .event_bus import bus
 from .memory_db import CodingMemory
-from .constitution import LearningConstitution
-from project_creator.memory.vector_store import VectorStore
-import os
+
 
 class PatternLearner:
     def __init__(self, db_path):
         self.memory = CodingMemory(db_path)
-        index_path = os.path.join(os.path.dirname(db_path), "jules_patterns.idx")
+        # P2-9: Consolidate vector stores into a single main index
+        index_path = os.path.join(os.path.dirname(db_path), "jules_vectors.idx")
         self.vector_store = VectorStore(index_path)
         self._setup_subscriptions()
 
@@ -21,30 +25,33 @@ class PatternLearner:
 
     def learn_from_edit(self, data):
         # Learn from what the user changed Jules' code into
-        path = data.get('path')
-        user_code = data.get('user_code', '')
+        path = data.get("path")
+        user_code = data.get("user_code", "")
         if user_code:
             print(f"🧠 PatternLearner: Learning from manual user edit in {path}")
             self._extract_patterns(user_code, source_type="USER")
-            self.memory.add_snippet(path, user_code, 'MANUAL_EDIT', source_type="USER")
+            self.memory.add_snippet(path, user_code, "MANUAL_EDIT", source_type="USER")
 
     def learn_from_patch(self, data):
         # Learn from code that was actually accepted
-        content = data.get('content', '')
+        content = data.get("content", "")
         self._extract_patterns(content, source_type="USER")
-        self.memory.add_snippet(data.get('path'), content, 'ACCEPTED', source_type="USER")
+        self.memory.add_snippet(
+            data.get("path"), content, "ACCEPTED", source_type="USER"
+        )
 
     def learn_from_file(self, data):
         # Learn from existing codebase style
-        content = data.get('content', '')
-        path = data.get('path', '')
-        source = getattr(self, 'current_source', 'SELF')
+        content = data.get("content", "")
+        path = data.get("path", "")
+        source = getattr(self, "current_source", "SELF")
         self._extract_patterns(content, source_type=source)
         # Also index existing files semantically
         self.vector_store.add(content, {"path": path, "type": "existing_code"})
 
     def _extract_patterns(self, content, source_type="SELF"):
-        if not content: return
+        if not content:
+            return
 
         # Apply Constitution Scrubbing before learning
         content = LearningConstitution.scrub(content)
@@ -55,24 +62,35 @@ class PatternLearner:
             for node in ast.walk(tree):
                 if isinstance(node, ast.Import):
                     for alias in node.names:
-                        self.memory.learn_pattern('import', alias.name, source_type=source_type)
+                        self.memory.learn_pattern(
+                            "import", alias.name, source_type=source_type
+                        )
                 elif isinstance(node, ast.ImportFrom):
-                    self.memory.learn_pattern('import', node.module, source_type=source_type)
-        except: pass
+                    self.memory.learn_pattern(
+                        "import", node.module, source_type=source_type
+                    )
+        except:
+            pass
 
         # 2. Extract specific API patterns (e.g. FastAPI, Streamlit)
         if "APIRouter()" in content:
-            self.memory.learn_pattern('api_style', 'fastapi_router', source_type=source_type)
+            self.memory.learn_pattern(
+                "api_style", "fastapi_router", source_type=source_type
+            )
         if "app = FastAPI()" in content:
-            self.memory.learn_pattern('api_style', 'fastapi_app', source_type=source_type)
+            self.memory.learn_pattern(
+                "api_style", "fastapi_app", source_type=source_type
+            )
         if "import streamlit as st" in content or "import streamlit" in content:
-            self.memory.learn_pattern('api_style', 'streamlit_app', source_type=source_type)
+            self.memory.learn_pattern(
+                "api_style", "streamlit_app", source_type=source_type
+            )
 
         # 3. Naming Conventions (Heuristic)
-        if re.search(r'def [a-z_]+', content):
-            self.memory.learn_pattern('naming', 'snake_case', source_type=source_type)
-        elif re.search(r'def [a-z][A-Z]', content):
-            self.memory.learn_pattern('naming', 'camelCase', source_type=source_type)
+        if re.search(r"def [a-z_]+", content):
+            self.memory.learn_pattern("naming", "snake_case", source_type=source_type)
+        elif re.search(r"def [a-z][A-Z]", content):
+            self.memory.learn_pattern("naming", "camelCase", source_type=source_type)
 
         # 4. Project Idioms (AST-based)
         try:
@@ -96,11 +114,18 @@ class PatternLearner:
 
                         if parts:
                             idiom = ".".join(reversed(parts))
-                            self.memory.learn_pattern('idiom', f"decorator:{idiom}", source_type=source_type)
+                            self.memory.learn_pattern(
+                                "idiom", f"decorator:{idiom}", source_type=source_type
+                            )
 
                 # Detect Base Classes
                 if isinstance(node, ast.ClassDef):
                     for base in node.bases:
                         if isinstance(base, ast.Name):
-                            self.memory.learn_pattern('idiom', f"base_class:{base.id}", source_type=source_type)
-        except: pass
+                            self.memory.learn_pattern(
+                                "idiom",
+                                f"base_class:{base.id}",
+                                source_type=source_type,
+                            )
+        except:
+            pass

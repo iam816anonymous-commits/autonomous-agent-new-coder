@@ -1,6 +1,6 @@
-import sqlite3
 import json
-import os
+import sqlite3
+
 
 class DatasetExporter:
     def __init__(self, db_path):
@@ -11,17 +11,34 @@ class DatasetExporter:
         print(f"📦 Exporting Night Learning dataset to {output_path}...")
 
         with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             # Export snippet solving chains
-            cursor.execute('SELECT file_path, content FROM snippets WHERE status = "APPROVED"')
+            cursor.execute(
+                'SELECT file_path, content, tags FROM snippets WHERE status = "APPROVED" OR status = "ACCEPTED"'
+            )
             rows = cursor.fetchall()
 
             count = 0
-            with open(output_path, 'w') as f:
+            with open(output_path, "w") as f:
                 for row in rows:
+                    # P3-12: Use actual task metadata for instruction if available
+                    instruction = f"Solve a coding task for {row['file_path']}."
+                    if row["tags"]:
+                        try:
+                            tags = json.loads(row["tags"])
+                            if "instruction" in tags:
+                                instruction = tags["instruction"]
+                        except:
+                            pass
+
                     entry = {
-                        "instruction": f"Solve a coding task for {row[0]}.",
-                        "output": row[1]
+                        "instruction": instruction,
+                        "output": row["content"],
+                        "metadata": {
+                            "file_path": row["file_path"],
+                            "tags": row["tags"],
+                        },
                     }
                     f.write(json.dumps(entry) + "\n")
                     count += 1

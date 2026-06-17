@@ -1,5 +1,5 @@
 import os
-import ast
+
 
 class ArchitectureExtractor:
     def __init__(self):
@@ -12,13 +12,13 @@ class ArchitectureExtractor:
             "entry_points": [],
             "test_dirs": [],
             "patterns": [],
-            "complexity_score": 0
+            "complexity_score": 0,
         }
 
         file_count = 0
         for root, dirs, files in os.walk(repo_path):
             # Prune hidden dirs
-            dirs[:] = [d for d in dirs if not d.startswith('.')]
+            dirs[:] = [d for d in dirs if not d.startswith(".")]
 
             rel_root = os.path.relpath(root, repo_path)
             file_count += len(files)
@@ -38,15 +38,20 @@ class ArchitectureExtractor:
 
                 # 3. Pattern Detection (Heuristic-based)
                 content = ""
-                if f.endswith(('.py', '.ts', '.js')):
+                if f.endswith((".py", ".ts", ".js")):
                     try:
-                        with open(full_path, 'r', encoding='utf-8') as file:
+                        with open(full_path, "r", encoding="utf-8") as file:
                             content = file.read()
-                    except: continue
+                    except:
+                        continue
 
                 if "Agent" in content or "orchestrator" in content.lower():
                     self._add_pattern(structure, "Agent-based Reasoning")
-                if "VectorStore" in content or "FAISS" in content or "Chroma" in content:
+                if (
+                    "VectorStore" in content
+                    or "FAISS" in content
+                    or "Chroma" in content
+                ):
                     self._add_pattern(structure, "Semantic Memory (RAG)")
                 if "JWT" in content or "auth" in content.lower():
                     self._add_pattern(structure, "JWT Authentication")
@@ -54,7 +59,9 @@ class ArchitectureExtractor:
                     self._add_pattern(structure, "REST API Router")
                 if "FastAPI" in content and "Uvicorn" in content:
                     self._add_pattern(structure, "FastAPI Backend Service")
-                if "Provider" in content and ("router" in content.lower() or "llm" in content.lower()):
+                if "Provider" in content and (
+                    "router" in content.lower() or "llm" in content.lower()
+                ):
                     self._add_pattern(structure, "Provider Routing")
                 if "vscode" in content.lower() and "extension" in content.lower():
                     self._add_pattern(structure, "VS Code Extension")
@@ -70,7 +77,9 @@ class ArchitectureExtractor:
                     self._add_pattern(structure, "Singleton Pattern")
 
         # 4. Calculate Complexity Score (Normalized 0-100)
-        structure["complexity_score"] = min(100, (len(structure["modules"]) * 5) + (file_count // 10))
+        structure["complexity_score"] = min(
+            100, (len(structure["modules"]) * 5) + (file_count // 10)
+        )
 
         return structure
 

@@ -1,5 +1,6 @@
-import os
 import json
+import os
+
 
 class SessionManager:
     def __init__(self, project_root):
@@ -11,14 +12,14 @@ class SessionManager:
             "blueprint": blueprint,
             "generated_files": generated_files,
             "repairs": repairs,
-            "approvals": approvals
+            "approvals": approvals,
         }
         os.makedirs(self.project_root, exist_ok=True)
-        with open(self.session_file, 'w') as f:
+        with open(self.session_file, "w") as f:
             json.dump(data, f, indent=2)
 
     def load_session(self):
         if os.path.exists(self.session_file):
-            with open(self.session_file, 'r') as f:
+            with open(self.session_file, "r") as f:
                 return json.load(f)
         return None

@@ -1,10 +1,13 @@
-import subprocess
+import logging
 import os
 import shlex
-import logging
+import subprocess
 
 # Set up audit logging
-logging.basicConfig(filename="agent_audit.log", level=logging.INFO, format='%(asctime)s - %(message)s')
+logging.basicConfig(
+    filename="agent_audit.log", level=logging.INFO, format="%(asctime)s - %(message)s"
+)
+
 
 class ToolExecutor:
     def __init__(self, project_root):
@@ -12,13 +15,41 @@ class ToolExecutor:
         # Sandbox Constitution: Strictly Whitelisted Bases
         self.allowed_bases = {"pytest", "ruff", "black", "python3"}
 
+    async def execute_async(self, command, needs_approval=None):
+        if needs_approval is None:
+            if command.startswith("python3"):
+                needs_approval = True
+
+        if needs_approval:
+            import asyncio
+            import uuid
+
+            from project_creator.server import state
+
+            cmd_id = str(uuid.uuid4())
+            state.pending_commands[cmd_id] = {"command": command, "status": "pending"}
+            print(f"🛑 Security: Command requires human approval: {command}")
+
+            start_wait = time.time()
+            while time.time() - start_wait < 60:
+                if state.pending_commands.get(cmd_id, {}).get("status") == "approved":
+                    del state.pending_commands[cmd_id]
+                    break
+                await asyncio.sleep(1)
+            else:
+                return {"error": "Security Rejection: Human approval timeout."}
+
+        return self.execute(command)
+
     def execute(self, command):
+
         try:
             cmd_args = shlex.split(command)
         except ValueError as e:
             return {"error": f"Parse Error: {e}"}
 
-        if not cmd_args: return {"error": "Empty command."}
+        if not cmd_args:
+            return {"error": "Empty command."}
 
         cmd_base = cmd_args[0]
 
@@ -27,15 +58,47 @@ class ToolExecutor:
             logging.warning(f"REJECTED: {command}")
             return {"error": f"Sandbox Rejection: '{cmd_base}' is restricted."}
 
-        # 2. Forbidden pattern verification
+        # 2. Forbidden pattern verification (P1-8: Token-aware matching)
         forbidden = {
-            "sudo", "chmod", "chown", "env", ".env", "passwd", "shadow",
-            "rm -rf /", "git", "pip", "sh", "bash", "curl", "wget", "eval", "exec"
+            "sudo",
+            "chmod",
+            "chown",
+            "env",
+            ".env",
+            "passwd",
+            "shadow",
+            "rm",
+            "git",
+            "pip",
+            "sh",
+            "bash",
+            "curl",
+            "wget",
+            "eval",
+            "exec",
+            "systemctl",
+            "docker",
+            "ssh",
+            "scp",
+            "nc",
+            "nmap",
         }
+
         for arg in cmd_args:
-            if any(p in arg.lower() for p in forbidden):
-                 logging.warning(f"REJECTED PATTERN: {command}")
-                 return {"error": f"Constitution Violation: Forbidden pattern detected."}
+            # Check for exact matches of forbidden commands or dangerous flags
+            clean_arg = arg.strip().lower()
+            if clean_arg in forbidden:
+                logging.warning(f"REJECTED FORBIDDEN COMMAND/ARG: {command}")
+                return {
+                    "error": f"Constitution Violation: Forbidden element '{clean_arg}' detected."
+                }
+
+            # Special check for rm -rf / or similar
+            if clean_arg == "-rf" and "rm" in cmd_args:
+                logging.warning(f"REJECTED DANGEROUS FLAG: {command}")
+                return {
+                    "error": "Constitution Violation: Dangerous flag '-rf' detected."
+                }
 
         try:
             # 3. Clean environment and non-shell execution (with venv support)
@@ -56,12 +119,12 @@ class ToolExecutor:
                 text=True,
                 timeout=30,
                 shell=False,
-                env=env
+                env=env,
             )
             return {
                 "stdout": result.stdout,
                 "stderr": result.stderr,
-                "returncode": result.returncode
+                "returncode": result.returncode,
             }
         except Exception as e:
             return {"error": str(e)}
@@ -75,8 +138,15 @@ class ToolExecutor:
             # Install core validation tools into venv
             # In real scenario we might want to install requirements.txt too
             bin_path = os.path.join(venv_path, "bin", "pip")
-            subprocess.run([bin_path, "install", "ruff", "black", "pytest"], capture_output=True)
+            subprocess.run(
+                [bin_path, "install", "ruff", "black", "pytest"], capture_output=True
+            )
 
-    def run_lint(self, p): return self.execute(f"ruff check {p}")
-    def run_format(self, p): return self.execute(f"black {p}")
-    def run_tests(self): return self.execute("pytest")
+    def run_lint(self, p):
+        return self.execute(f"ruff check {p}")
+
+    def run_format(self, p):
+        return self.execute(f"black {p}")
+
+    def run_tests(self):
+        return self.execute("pytest")

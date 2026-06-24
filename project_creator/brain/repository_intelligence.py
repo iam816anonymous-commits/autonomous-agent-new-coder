@@ -1,11 +1,12 @@
-import os
-from .call_graph_learner import CallGraphLearner
 from .architecture_extractor import ArchitectureExtractor
+from .call_graph_learner import CallGraphLearner
+
 
 class RepositoryIntelligence:
     """
     High-level repository understanding layer.
     """
+
     def __init__(self, project_root: str):
         self.root = project_root
         self.call_graph = CallGraphLearner(project_root)
@@ -23,7 +24,7 @@ class RepositoryIntelligence:
 
         return {
             "architecture_type": arch_type,
-            "modules": structure['modules'],
+            "modules": structure["modules"],
             "impact_map": "Available via call_graph.get_impacted_files",
-            "summary": f"A {arch_type} project with {len(structure['modules'])} modules."
+            "summary": f"A {arch_type} project with {len(structure['modules'])} modules.",
         }

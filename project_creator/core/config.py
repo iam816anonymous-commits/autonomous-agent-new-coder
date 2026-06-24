@@ -1,10 +1,23 @@
-import os
 import getpass
+import os
 import sys
+
 from dotenv import load_dotenv
 
+
 class Config:
+    _instance = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(Config, cls).__new__(cls)
+            cls._instance._initialized = False
+        return cls._instance
+
     def __init__(self):
+        if self._initialized:
+            return
+
         # Load .env file if it exists
         load_dotenv()
 
@@ -18,7 +31,15 @@ class Config:
         self.gemini_model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
         self.groq_api_key = os.getenv("GROQ_API_KEY")
         self.openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
-        self.chatgpt_cookies_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "browser", "cookies.json")
+        self.chatgpt_cookies_path = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)), "browser", "cookies.json"
+        )
+        self._initialized = True
 
-def get_config(): return Config()
-def get_extended_config(): return get_config()
+
+def get_config():
+    return Config()
+
+
+def get_extended_config():
+    return get_config()

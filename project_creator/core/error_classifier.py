@@ -1,10 +1,12 @@
 from enum import Enum
 
+
 class ErrorSeverity(Enum):
     LOW = 1
     MEDIUM = 2
     HIGH = 3
     CRITICAL = 4
+
 
 class ErrorCategory(Enum):
     SYNTAX = "SYNTAX"
@@ -18,10 +20,12 @@ class ErrorCategory(Enum):
     API_CONTRACT = "API_CONTRACT"
     CIRCULAR_DEP = "CIRCULAR_DEP"
 
+
 class ErrorClassifier:
     """
     Categorizes errors and suggests targeted repair strategies.
     """
+
     def classify_error(self, message):
         msg = message.lower()
         if "syntax" in msg:
@@ -44,7 +48,7 @@ class ErrorClassifier:
             ErrorCategory.TYPE: "Verify function signatures and data structures. Check for None values.",
             ErrorCategory.LOGIC: "Check algorithm logic and edge cases. Verify unit test assertions.",
             ErrorCategory.CIRCULAR_DEP: "Refactor to move shared logic to a common 'core' or 'utils' module.",
-            ErrorCategory.RUNTIME: "Examine stack trace for null pointers or resource unavailability."
+            ErrorCategory.RUNTIME: "Examine stack trace for null pointers or resource unavailability.",
         }
         return plans.get(category, "Review the logs and perform a general repair.")
 

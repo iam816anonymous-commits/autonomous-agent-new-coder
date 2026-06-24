@@ -1,13 +1,20 @@
 import os
-import re
-from .event_bus import bus
+
 from .collector import collector
+
 
 class RepoLearner:
     def __init__(self, workspace_root: str):
         self.workspace_root = workspace_root
-        self.exclude_dirs = {'.git', 'node_modules', 'venv', '__pycache__', 'dist', 'build'}
-        self.include_exts = {'.py', '.js', '.ts', '.tsx', '.go', '.rs', '.java', '.cpp'}
+        self.exclude_dirs = {
+            ".git",
+            "node_modules",
+            "venv",
+            "__pycache__",
+            "dist",
+            "build",
+        }
+        self.include_exts = {".py", ".js", ".ts", ".tsx", ".go", ".rs", ".java", ".cpp"}
 
     def scan_workspace(self):
         print(f"🔍 Reality Learning: Scanning workspace {self.workspace_root}")
@@ -27,12 +34,11 @@ class RepoLearner:
 
     def _learn_file(self, full_path: str, rel_path: str):
         try:
-            with open(full_path, 'r', encoding='utf-8') as f:
+            with open(full_path, "r", encoding="utf-8") as f:
                 content = f.read()
                 if content:
-                    collector.collect("FILE_OPEN", {
-                        "path": rel_path,
-                        "content": content
-                    })
+                    collector.collect(
+                        "FILE_OPEN", {"path": rel_path, "content": content}
+                    )
         except Exception as e:
             print(f"⚠️  RepoLearner: Failed to read {rel_path}: {e}")

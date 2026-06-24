@@ -1,10 +1,12 @@
-from .repo_indexer import RepoIndexer
-from .architecture_extractor import ArchitectureExtractor
-from .dependency_extractor import DependencyExtractor
-from .repository_memory import RepositoryMemory
-from .architecture_memory import ArchitectureMemory
-import os
 import json
+import os
+
+from .architecture_extractor import ArchitectureExtractor
+from .architecture_memory import ArchitectureMemory
+from .dependency_extractor import DependencyExtractor
+from .repo_indexer import RepoIndexer
+from .repository_memory import RepositoryMemory
+
 
 class RepositoryBrain:
     def __init__(self, db_path):
@@ -39,7 +41,7 @@ class RepositoryBrain:
             "patterns": structure["patterns"],
             "dependencies": dependencies["python"] + dependencies["javascript"],
             "complexity_score": structure["complexity_score"],
-            "confidence": 0.85 # Heuristic confidence
+            "confidence": 0.85,  # Heuristic confidence
         }
 
         # 5. Store in specialized memories
@@ -48,14 +50,19 @@ class RepositoryBrain:
             project_type=card["category"],
             architecture=card["architecture"],
             dependencies=card["dependencies"],
-            success_score=card["confidence"]
+            success_score=card["confidence"],
         )
 
         # Save card to project root for inspection if needed
         try:
-            with open(os.path.join(repo_path, "repository_card.json"), 'w') as f:
-                json.dump(card, f, indent=2)
-        except: pass
+            from project_creator.core.storage import Storage
 
-        print(f"✅ Brain: Ingested {repo_name}. Complexity: {card['complexity_score']}, Patterns: {len(card['patterns'])}")
+            storage = Storage(repo_path)
+            storage.write_file("repository_card.json", json.dumps(card, indent=2))
+        except:
+            pass
+
+        print(
+            f"✅ Brain: Ingested {repo_name}. Complexity: {card['complexity_score']}, Patterns: {len(card['patterns'])}"
+        )
         return card

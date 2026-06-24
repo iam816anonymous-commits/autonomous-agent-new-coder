@@ -1,10 +1,12 @@
 import os
 import sqlite3
+
 import pytest
-import shutil
+
+from project_creator.learning.event_bus import bus
 from project_creator.learning.memory_db import CodingMemory
 from project_creator.learning.repo_learner import RepoLearner
-from project_creator.learning.event_bus import bus
+
 
 @pytest.fixture
 def test_db():
@@ -16,6 +18,7 @@ def test_db():
     if os.path.exists(db_path):
         os.remove(db_path)
 
+
 @pytest.fixture
 def test_workspace(tmp_path):
     d = tmp_path / "workspace"
@@ -25,9 +28,9 @@ def test_workspace(tmp_path):
     (d / "sub" / "other.py").write_text("import sys")
     return str(d)
 
+
 def test_repo_learner(test_db, test_workspace):
     # Setup pattern learner to listen
-    from project_creator.learning.pattern_learner import PatternLearner
     from project_creator.learning import pattern_learner
 
     orig_memory = pattern_learner.memory
@@ -47,16 +50,21 @@ def test_repo_learner(test_db, test_workspace):
         assert "os" in imports
         assert "sys" in imports
 
+
 def test_failure_logging(test_db):
     from project_creator.learning.failure_learner import FailureLearner
+
     fl = FailureLearner(test_db)
 
-    bus.publish("VALIDATION_FAILED", {
-        "path": "bad.py",
-        "type": "SANDBOX",
-        "error": "SyntaxError: invalid syntax",
-        "content": "def bad("
-    })
+    bus.publish(
+        "VALIDATION_FAILED",
+        {
+            "path": "bad.py",
+            "type": "SANDBOX",
+            "error": "SyntaxError: invalid syntax",
+            "content": "def bad(",
+        },
+    )
 
     with sqlite3.connect(test_db) as conn:
         cursor = conn.cursor()

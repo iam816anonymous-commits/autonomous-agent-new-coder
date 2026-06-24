@@ -1,7 +1,9 @@
-import os
-import json
 import asyncio
+import json
+import os
+
 from playwright.async_api import async_playwright
+
 
 class ChatGPTBrowserProvider:
     def __init__(self, cookies_path):
@@ -11,12 +13,11 @@ class ChatGPTBrowserProvider:
         async with async_playwright() as p:
             # We use a persistent context to use cookies
             browser_context = await p.chromium.launch_persistent_context(
-                user_data_dir="/tmp/chatgpt_browser_data",
-                headless=True
+                user_data_dir="/tmp/chatgpt_browser_data", headless=True
             )
 
             if os.path.exists(self.cookies_path):
-                with open(self.cookies_path, 'r') as f:
+                with open(self.cookies_path, "r") as f:
                     cookies = json.load(f)
                 await browser_context.add_cookies(cookies)
 
@@ -50,6 +51,7 @@ class ChatGPTBrowserProvider:
             # If we are in FastAPI, we should ideally use async all the way up,
             # but as a quick fix for the orchestrator which is currently sync:
             import nest_asyncio
+
             nest_asyncio.apply()
             return loop.run_until_complete(self.generate_async(full_prompt))
         else:

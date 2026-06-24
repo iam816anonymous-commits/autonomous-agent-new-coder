@@ -1,18 +1,19 @@
 from .base_memory import BaseBrainMemory
-import json
+
 
 class RepositoryMemory(BaseBrainMemory):
     """
     Stores high-level 'Knowledge Cards' for indexed repositories.
     """
+
     def __init__(self, db_path):
         super().__init__(db_path, index_name="repository")
 
     def store_card(self, card):
         """Stores a JSON knowledge card and indexes it semantically."""
-        repo_name = card.get('repository', 'unknown')
-        category = card.get('category', 'Generic')
-        arch = card.get('architecture', 'Standard')
+        repo_name = card.get("repository", "unknown")
+        category = card.get("category", "Generic")
+        arch = card.get("architecture", "Standard")
 
         # Build searchable context
         text_context = [
@@ -20,7 +21,7 @@ class RepositoryMemory(BaseBrainMemory):
             f"Category: {category}",
             f"Architecture: {arch}",
             f"Patterns: {', '.join(card.get('patterns', []))}",
-            f"Frameworks: {', '.join(card.get('frameworks', []))}"
+            f"Frameworks: {', '.join(card.get('frameworks', []))}",
         ]
 
         self.vector_store.add("\n".join(text_context), card)

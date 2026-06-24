@@ -1,5 +1,6 @@
 from typing import Callable, Dict, List
 
+
 class EventBus:
     def __init__(self):
         self.subscribers: Dict[str, List[Callable]] = {}
@@ -13,6 +14,7 @@ class EventBus:
         if event_type in self.subscribers:
             for callback in self.subscribers[event_type]:
                 callback(data)
+
 
 # Global Event Bus
 bus = EventBus()

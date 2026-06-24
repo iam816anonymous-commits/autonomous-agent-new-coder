@@ -1,5 +1,5 @@
-import sys
 import os
+import sys
 from unittest.mock import MagicMock
 
 # Project root setup
@@ -8,18 +8,17 @@ project_root = os.path.dirname(current_dir)
 if project_root not in sys.path:
     sys.path.append(project_root)
 
+from project_creator.core.manifest import ProjectManifest
 from project_creator.core.orchestrator import Orchestrator
+from project_creator.core.session import SessionManager
 from project_creator.core.storage import Storage
 from project_creator.core.tools import ToolExecutor
-from project_creator.core.manifest import ProjectManifest
-from project_creator.core.session import SessionManager
-from project_creator.router.provider_router import ProviderRouter
-from project_creator.core.error_classifier import ErrorCategory, ErrorSeverity
+
 
 def run_enhanced_demo():
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("🚀 MINI JULES ENHANCED WORKFLOW DEMO")
-    print("="*60 + "\n")
+    print("=" * 60 + "\n")
 
     # Setup
     router = MagicMock()
@@ -32,10 +31,10 @@ def run_enhanced_demo():
     session = SessionManager("enhanced_demo")
 
     agents = {
-        'planner': MagicMock(),
-        'coder': MagicMock(),
-        'critique': MagicMock(),
-        'repair': MagicMock()
+        "planner": MagicMock(),
+        "coder": MagicMock(),
+        "critique": MagicMock(),
+        "repair": MagicMock(),
     }
 
     orch = Orchestrator(router, agents, storage, tools, manifest, session)
@@ -43,7 +42,7 @@ def run_enhanced_demo():
     # Demo 1: Dialogue System
     print("--- Demo 1: Dialogue System ---")
     # Simulate user inputs for the demo
-    sys.stdin = open(os.devnull, 'r') # Prevents hanging on input()
+    sys.stdin = open(os.devnull, "r")  # Prevents hanging on input()
     try:
         reqs = orch.gather_requirements("Build a task manager")
         print(f"Extracted Requirements: {reqs}\n")
@@ -56,11 +55,11 @@ def run_enhanced_demo():
         "files": [
             {"path": "models.py", "description": "Core data models"},
             {"path": "database.py", "description": "Uses models to save data"},
-            {"path": "main.py", "description": "Entry point using database and models"}
+            {"path": "main.py", "description": "Entry point using database and models"},
         ]
     }
     orch.blueprint = blueprint
-    orch.dependency_analyzer.analyze_project(blueprint['files'])
+    orch.dependency_analyzer.analyze_project(blueprint["files"])
     order = orch.dependency_analyzer.get_dependency_order()
     print(f"Topological Sort for Generation: {' -> '.join(order)}\n")
 
@@ -78,9 +77,10 @@ def run_enhanced_demo():
     fw = orch.test_executor.detect_test_framework()
     print(f"Detected Test Framework: {fw}\n")
 
-    print("="*60)
+    print("=" * 60)
     print("✅ DEMO COMPLETE")
-    print("="*60 + "\n")
+    print("=" * 60 + "\n")
+
 
 if __name__ == "__main__":
     run_enhanced_demo()

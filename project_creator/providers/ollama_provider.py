@@ -1,6 +1,7 @@
-import requests
-import json
 import os
+
+import requests
+
 
 class OllamaProvider:
     def __init__(self):
@@ -11,11 +12,11 @@ class OllamaProvider:
         payload = {
             "model": self.model,
             "prompt": f"{system_prompt}\n\n{prompt}" if system_prompt else prompt,
-            "stream": False
+            "stream": False,
         }
         try:
             response = requests.post(self.base_url, json=payload, timeout=60)
-            return response.json().get('response', '').strip()
+            return response.json().get("response", "").strip()
         except Exception as e:
             print(f"Ollama error: {e}")
             return ""

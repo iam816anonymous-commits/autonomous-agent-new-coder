@@ -1,19 +1,29 @@
-from typing import Dict, Any
+from typing import Any, Dict
+
 
 class TradeoffAnalyzer:
     """
     Analyzes architectural recommendations for benefits, risks, and costs.
     """
+
     def analyze(self, recommendation: Dict[str, Any]) -> Dict[str, Any]:
-        style = recommendation.get('base_architecture', recommendation.get('architecture_style', 'Standard'))
-        patterns = recommendation.get('merged_patterns', recommendation.get('suggested_patterns', []))
+        style = recommendation.get(
+            "base_architecture", recommendation.get("architecture_style", "Standard")
+        )
+        patterns = recommendation.get(
+            "merged_patterns", recommendation.get("suggested_patterns", [])
+        )
 
         analysis = {
             "benefits": self._get_benefits(style, patterns),
             "risks": self._get_risks(style, patterns),
             "complexity": "Medium" if len(patterns) < 5 else "High",
             "maintenance_cost": "Low" if "Modular" in style else "Medium",
-            "scalability_impact": "High" if "Microservices" in style or "Async" in str(patterns) else "Normal"
+            "scalability_impact": (
+                "High"
+                if "Microservices" in style or "Async" in str(patterns)
+                else "Normal"
+            ),
         }
 
         return analysis

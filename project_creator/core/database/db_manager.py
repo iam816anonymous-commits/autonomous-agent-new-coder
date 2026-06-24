@@ -1,12 +1,12 @@
 import sqlite3
-import os
-import time
 from contextlib import contextmanager
+
 
 class DatabaseManager:
     """
     Centralized thread-safe connection and transaction management for SQLite.
     """
+
     def __init__(self, db_path):
         self.db_path = db_path
 

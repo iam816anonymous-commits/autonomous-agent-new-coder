@@ -11,6 +11,10 @@ from .operators.builtin.symbol_rename import SymbolRenameOperator
 from .operators.builtin.file_move import FileMoveOperator
 from .operators.context import OperatorContext
 from .runtime.verifier import VerificationPlanner, VerificationRunner
+from .runtime.sandbox.manager import SandboxManager
+from .runtime.sandbox.models import SandboxSpec, SandboxMode, ExecutionTrustLevel, ExecutionCapability
+from .runtime.sandbox.container_backend import ContainerSandboxBackend
+from .runtime.sandbox.snapshot import WorkspaceSnapshotter
 from repository.scan import RepositoryAnalyzer
 
 def get_default_registry() -> OperatorRegistry:
@@ -86,6 +90,21 @@ def main():
     verify_p.add_argument("--root", default=".", help="Repository root path")
     verify_p.add_argument("--approved", action="store_true", help="Explicit human approval flag for mutations and high-risk tests")
 
+    # sandbox info parser
+    sb_info_p = subparsers.add_parser("sandbox-info", help="Display sandbox capability & Docker detection metadata")
+    sb_info_p.add_argument("--root", default=".", help="Repository root path")
+
+    # sandbox execute parser
+    sb_exec_p = subparsers.add_parser("sandbox-execute", help="Execute command inside sandbox environment")
+    sb_exec_p.add_argument("command_name", help="Registered command name")
+    sb_exec_p.add_argument("args", nargs="*", help="Extra arguments")
+    sb_exec_p.add_argument("--mode", default="RESTRICTED_LOCAL", help="STATIC_ONLY, RESTRICTED_LOCAL, or ISOLATED")
+    sb_exec_p.add_argument("--root", default=".", help="Repository root path")
+
+    # sandbox snapshot parser
+    sb_snap_p = subparsers.add_parser("sandbox-snapshot", help="Capture workspace snapshot and hash summary")
+    sb_snap_p.add_argument("--root", default=".", help="Repository root path")
+
     args = parser.parse_args()
 
     store = TaskStore()
@@ -94,8 +113,45 @@ def main():
     registry = get_default_registry()
     vplanner = VerificationPlanner()
     vrunner = VerificationRunner(state_machine=sm)
+    sb_manager = SandboxManager()
 
-    if args.command == "classify":
+    if args.command == "sandbox-info":
+        docker_status = ContainerSandboxBackend.detect_docker_availability()
+        info = {
+            "docker_availability": docker_status,
+            "supported_modes": [m.value for m in SandboxMode],
+            "capabilities": [c.value for c in ExecutionCapability],
+            "trust_levels": [t.value for t in ExecutionTrustLevel],
+            "repository_root": args.root
+        }
+        print(json.dumps(info, indent=2))
+
+    elif args.command == "sandbox-snapshot":
+        snap = WorkspaceSnapshotter.capture(args.root)
+        summary = {
+            "workspace_root": snap.workspace_root,
+            "file_count": len(snap.files),
+            "summary_hash": snap.summary_hash
+        }
+        print(json.dumps(summary, indent=2))
+
+    elif args.command == "sandbox-execute":
+        mode_enum = SandboxMode(args.mode.upper())
+        spec = SandboxSpec(
+            sandbox_id="CLI-SB-EXEC",
+            mode=mode_enum,
+            workspace_root=args.root,
+            allowed_capabilities={ExecutionCapability.STATIC_ANALYSIS, ExecutionCapability.READ_WORKSPACE, ExecutionCapability.EXECUTE_COMMAND, ExecutionCapability.RUN_TESTS},
+            trust_level=ExecutionTrustLevel.UNTRUSTED_REPOSITORY_CODE if mode_enum != SandboxMode.STATIC_ONLY else ExecutionTrustLevel.NO_CODE_EXECUTION
+        )
+        try:
+            res = sb_manager.execute_in_sandbox(spec, args.command_name, args.args)
+            print(json.dumps(asdict(res), indent=2))
+        except Exception as e:
+            print(json.dumps({"error": str(e)}, indent=2))
+            sys.exit(1)
+
+    elif args.command == "classify":
         repo_snapshot = RepositoryAnalyzer.analyze(args.root) if args.root else None
         res = classifier.classify(args.request, repo_snapshot)
         print(json.dumps(asdict(res), indent=2))

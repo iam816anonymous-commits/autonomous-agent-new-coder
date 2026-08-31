@@ -15,6 +15,7 @@ from .runtime.sandbox.manager import SandboxManager
 from .runtime.sandbox.models import SandboxSpec, SandboxMode, ExecutionTrustLevel, ExecutionCapability
 from .runtime.sandbox.container_backend import ContainerSandboxBackend
 from .runtime.sandbox.snapshot import WorkspaceSnapshotter
+from .orchestrator.orchestrator import EngineeringOrchestrator
 from repository.scan import RepositoryAnalyzer
 
 def get_default_registry() -> OperatorRegistry:
@@ -105,6 +106,12 @@ def main():
     sb_snap_p = subparsers.add_parser("sandbox-snapshot", help="Capture workspace snapshot and hash summary")
     sb_snap_p.add_argument("--root", default=".", help="Repository root path")
 
+    # orchestrate parser
+    orch_p = subparsers.add_parser("orchestrate", help="Run full deterministic engineering pipeline")
+    orch_p.add_argument("request", help="Request string")
+    orch_p.add_argument("--root", default=".", help="Repository root path")
+    orch_p.add_argument("--approved", action="store_true", help="Explicit human approval flag")
+
     args = parser.parse_args()
 
     store = TaskStore()
@@ -125,6 +132,11 @@ def main():
             "repository_root": args.root
         }
         print(json.dumps(info, indent=2))
+
+    elif args.command == "orchestrate":
+        orchestrator = EngineeringOrchestrator(store=store, registry=registry, sandbox_manager=sb_manager)
+        report = orchestrator.run(repository_root=args.root, request_string=args.request, approved=args.approved)
+        print(json.dumps(asdict(report), indent=2))
 
     elif args.command == "sandbox-snapshot":
         snap = WorkspaceSnapshotter.capture(args.root)

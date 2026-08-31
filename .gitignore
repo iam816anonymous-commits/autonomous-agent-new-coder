@@ -8,6 +8,7 @@ dist/
 project.yaml
 agent_audit.log
 agent_brain.db
+*.db
 artifacts/
 .pytest_cache/
 venv/

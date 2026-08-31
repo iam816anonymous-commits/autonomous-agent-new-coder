@@ -1,7 +1,7 @@
-# ⚙️ Deterministic Engineering Operator Framework (Phase D)
+# ⚙️ Deterministic Engineering Operator Framework (Phase D.1)
 
 ## Overview
-Phase D introduces the **Deterministic Engineering Operator Framework** (`engine.operators`). Operators transform task classifications into safe, inspectable, dry-run proposals containing unified diffs and SHA-256 integrity hashes—**100% offline without LLM dependencies**.
+Phase D.1 hardens the **Deterministic Engineering Operator Framework** (`engine.operators`). Operators transform task classifications into safe, inspectable, dry-run proposals containing unified diffs and SHA-256 integrity hashes—**100% offline without LLM dependencies**.
 
 ## Operator Lifecycle
 
@@ -9,13 +9,13 @@ Phase D introduces the **Deterministic Engineering Operator Framework** (`engine
 Classified Request
         │
         ▼
-   Registry Lookup
+   Registry Lookup ────────► Rejects duplicate operator registrations
         │
         ▼
-  INSPECT (inspect) ──► Analyze preconditions and symbol index
+  INSPECT (inspect) ──► Analyze preconditions and symbol index (Zero side effects)
         │
         ▼
-    PLAN (plan)    ──► Machine-readable step sequence
+    PLAN (plan)    ──► Machine-readable step sequence (Zero side effects)
         │
         ▼
 PROPOSE (propose)  ──► Dry-run diff & SHA-256 generation (Modifies NOTHING)
@@ -27,7 +27,7 @@ PROPOSE (propose)  ──► Dry-run diff & SHA-256 generation (Modifies NOTHING
 APPROVAL BOUNDARY ──► approved=False raises ApprovalRequiredError
         │
         ▼
-   APPLY (apply)   ──► Verify SHA-256 stale check -> Mutate workspace -> Post-verify
+   APPLY (apply)   ──► Double-apply check -> Verify SHA-256 stale check -> Mutate workspace -> Post-verify
         │
   (on error/failure)
         ▼
@@ -42,14 +42,20 @@ APPROVAL BOUNDARY ──► approved=False raises ApprovalRequiredError
 2. **SHA-256 Stale Proposal Rejection**:
    Before modifying workspace files in `apply()`, the operator verifies that the current SHA-256 content hash matches the proposal's `old_sha256`. If the workspace was modified after proposal creation, a `StaleProposalError` is raised.
 
-3. **Explicit Approval Boundary**:
+3. **Double-Apply Protection**:
+   Re-applying an already applied proposal returns `success=True` with warning `"ALREADY_APPLIED: Proposal changes are already present in workspace."` without corrupting files.
+
+4. **Explicit Approval Boundary**:
    Calling `apply()` with `approved=False` raises `ApprovalRequiredError` and aborts without workspace changes.
 
-4. **Targeted Rollback**:
-   If post-verification fails during `apply()`, the operator restores only the files modified or created during that operator transaction ID.
+5. **Targeted Rollback**:
+   If post-verification fails during `apply()`, the operator restores only the files modified or created during that operator transaction ID, preserving unrelated user edits.
 
-5. **Token-Based Symbol Renaming**:
-   `SymbolRenameOperator` uses Python AST and tokenizer tokens to rename exact identifiers without false-positive string/substring collisions.
+6. **Token-Based Symbol Renaming**:
+   `SymbolRenameOperator` uses Python AST and tokenizer tokens to rename exact identifiers without false-positive string, comment, or substring collisions.
+
+7. **Ambiguous Target Detection**:
+   If a symbol is defined in multiple files and no target scope is specified, `SymbolRenameOperator` rejects the operation with `AMBIGUOUS_TARGET`.
 
 ## Builtin Operators
 - **`SymbolRenameOperator`**: Handles `SYMBOL_RENAME` using AST token rewriting.

@@ -13,7 +13,7 @@ from repository.scan import RepositoryAnalyzer
 FIXTURES_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), "fixtures"))
 
 class TestOperatorRegistry(unittest.TestCase):
-    def test_registry_lookup(self):
+    def test_registry_lookup_and_duplicate_rejection(self):
         reg = OperatorRegistry()
         rename_op = SymbolRenameOperator()
         move_op = FileMoveOperator()
@@ -25,6 +25,10 @@ class TestOperatorRegistry(unittest.TestCase):
         self.assertEqual(reg.get_operator_for_task(TaskType.SYMBOL_RENAME), rename_op)
         self.assertEqual(reg.get_operator_for_task(TaskType.FILE_MOVE), move_op)
         self.assertEqual(len(reg.list_operators()), 2)
+
+        # Duplicate operator registration by name
+        with self.assertRaises(ValueError):
+            reg.register(SymbolRenameOperator())
 
 
 class TestSymbolRenameOperator(unittest.TestCase):
@@ -93,6 +97,8 @@ class TestSymbolRenameOperator(unittest.TestCase):
         self.assertIn("def calculate_invoice_total(", utils_change.new_content)
         # 'my_calculate_total_backup' MUST NOT be incorrectly modified!
         self.assertIn("def my_calculate_total_backup():", utils_change.new_content)
+        # String/comment mentions remain unchanged in token mode
+        self.assertIn("# calculate_total backup function", utils_change.new_content)
 
     def test_approval_boundary_enforcement(self):
         plan = self.op.plan(self.context)
@@ -115,6 +121,18 @@ class TestSymbolRenameOperator(unittest.TestCase):
         with open(self.app_path, "r") as f:
             self.assertIn("calculate_invoice_total(10, 20)", f.read())
 
+    def test_double_apply_protection(self):
+        plan = self.op.plan(self.context)
+        proposal = self.op.propose(self.context, plan)
+
+        res1 = self.op.apply(self.context, proposal, approved=True)
+        self.assertTrue(res1.success)
+
+        # Re-applying same proposal returns ALREADY_APPLIED result
+        res2 = self.op.apply(self.context, proposal, approved=True)
+        self.assertTrue(res2.success)
+        self.assertIn("ALREADY_APPLIED", res2.error)
+
     def test_stale_proposal_rejection(self):
         plan = self.op.plan(self.context)
         proposal = self.op.propose(self.context, plan)
@@ -125,6 +143,49 @@ class TestSymbolRenameOperator(unittest.TestCase):
 
         with self.assertRaises(StaleProposalError):
             self.op.apply(self.context, proposal, approved=True)
+
+    def test_ambiguous_symbol_rejection(self):
+        # Create second file with identical definition 'calculate_total'
+        mod2_path = os.path.join(self.root, "mod2.py")
+        with open(mod2_path, "w") as f:
+            f.write("def calculate_total(): pass\n")
+
+        snapshot2 = RepositoryAnalyzer.analyze(self.root)
+        ctx2 = OperatorContext(
+            repository_root=self.root,
+            task_id="AMBIGUOUS-TASK",
+            classification=self.classification,
+            repo_snapshot=snapshot2
+        )
+
+        plan = self.op.plan(ctx2)
+        proposal = self.op.propose(ctx2, plan)
+
+        # Precondition for unambiguous target should fail
+        ambiguous_pre = next(p for p in proposal.preconditions if p.name == "unambiguous_symbol_target")
+        self.assertFalse(ambiguous_pre.satisfied)
+        self.assertIn("AMBIGUOUS_TARGET", ambiguous_pre.message)
+        self.assertEqual(len(proposal.files_to_modify), 0)
+
+    def test_target_collision_rejection(self):
+        # Create function 'calculate_invoice_total' to trigger collision
+        mod_path = os.path.join(self.root, "existing.py")
+        with open(mod_path, "w") as f:
+            f.write("def calculate_invoice_total(): pass\n")
+
+        snapshot = RepositoryAnalyzer.analyze(self.root)
+        ctx = OperatorContext(
+            repository_root=self.root,
+            task_id="COLLISION-TASK",
+            classification=self.classification,
+            repo_snapshot=snapshot
+        )
+
+        plan = self.op.plan(ctx)
+        proposal = self.op.propose(ctx, plan)
+
+        collision_pre = next(p for p in proposal.preconditions if p.name == "no_target_collision")
+        self.assertFalse(collision_pre.satisfied)
 
 
 class TestFileMoveOperator(unittest.TestCase):
@@ -178,34 +239,63 @@ class TestFileMoveOperator(unittest.TestCase):
         with open(dst_full, "r") as f:
             self.assertIn("def helper():", f.read())
 
+    def test_path_traversal_move_rejection(self):
+        classification = TaskClassification(
+            task_type=TaskType.FILE_MOVE,
+            status=TaskClassificationStatus.SUPPORTED,
+            confidence=0.95,
+            extracted_parameters={"source": "foo.py", "destination": "../../etc/passwd"}
+        )
+        ctx = OperatorContext(
+            repository_root=self.root,
+            task_id="TRAVERSAL-MOVE",
+            classification=classification,
+            repo_snapshot=self.snapshot
+        )
 
-class TestNoLLMRequirement(unittest.TestCase):
-    def test_offline_operator_execution(self):
+        plan = self.op.plan(ctx)
+        proposal = self.op.propose(ctx, plan)
+
+        boundary_pre = next(p for p in proposal.preconditions if p.name == "workspace_boundary_valid")
+        self.assertFalse(boundary_pre.satisfied)
+
+
+class TestTargetedRollback(unittest.TestCase):
+    def test_rollback_preserves_unrelated_user_changes(self):
         temp_dir = tempfile.TemporaryDirectory()
         root = temp_dir.name
-        f_path = os.path.join(root, "main.py")
-        with open(f_path, "w") as f: f.write("def main(): pass\n")
+
+        unrelated_path = os.path.join(root, "unrelated.py")
+        target_path = os.path.join(root, "target.py")
+
+        with open(unrelated_path, "w") as f: f.write("# User edits in progress\n")
+        with open(target_path, "w") as f: f.write("def foo(): pass\n")
 
         snapshot = RepositoryAnalyzer.analyze(root)
         op = SymbolRenameOperator()
         ctx = OperatorContext(
             repository_root=root,
-            task_id="OFFLINE-OP",
+            task_id="ROLLBACK-TEST",
             classification=TaskClassification(
                 task_type=TaskType.SYMBOL_RENAME,
                 status=TaskClassificationStatus.SUPPORTED,
                 confidence=0.95,
-                extracted_parameters={"old_name": "main", "new_name": "run_main"}
+                extracted_parameters={"old_name": "foo", "new_name": "bar"}
             ),
             repo_snapshot=snapshot
         )
 
         plan = op.plan(ctx)
         proposal = op.propose(ctx, plan)
-        res = op.apply(ctx, proposal, approved=True)
 
-        self.assertTrue(res.success)
-        with open(f_path) as f: self.assertIn("def run_main():", f.read())
+        # Apply and then rollback
+        op.apply(ctx, proposal, approved=True)
+        op.rollback(ctx, proposal)
+
+        # Target file restored
+        with open(target_path) as f: self.assertIn("def foo():", f.read())
+        # Unrelated user file remains completely intact
+        with open(unrelated_path) as f: self.assertIn("# User edits in progress", f.read())
 
         temp_dir.cleanup()
 

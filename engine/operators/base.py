@@ -20,7 +20,8 @@ def compute_sha256(content: str) -> str:
 class EngineeringOperator(ABC):
     """
     Abstract interface for Mini-Jules Engineering Operators.
-    Operates offline without LLMs; enforces dry-run proposals, SHA256 integrity, approval boundaries, and rollbacks.
+    Operates offline without LLMs; enforces dry-run proposals, SHA256 integrity, double-apply protection,
+    approval boundaries, and targeted rollbacks.
     """
     def __init__(self, name: str, supported_task_types: List[TaskType], capabilities: List[str]):
         self.name = name
@@ -29,12 +30,12 @@ class EngineeringOperator(ABC):
 
     @abstractmethod
     def inspect(self, context: OperatorContext) -> Dict[str, Any]:
-        """Gathers repository state and computes preliminary preconditions."""
+        """Gathers repository state and computes preliminary preconditions (must NOT mutate files)."""
         pass
 
     @abstractmethod
     def plan(self, context: OperatorContext) -> OperatorPlan:
-        """Generates a machine-readable execution plan with preconditions."""
+        """Generates a machine-readable execution plan with preconditions (must NOT mutate files)."""
         pass
 
     @abstractmethod
@@ -47,8 +48,41 @@ class EngineeringOperator(ABC):
 
     @abstractmethod
     def verify_proposal(self, context: OperatorContext, proposal: ProposedChange) -> VerificationResult:
-        """Verifies proposal integrity before application."""
+        """Verifies proposal integrity before application (must NOT mutate files)."""
         pass
+
+    def is_already_applied(self, context: OperatorContext, proposal: ProposedChange) -> bool:
+        """Checks if proposal changes are already present in workspace."""
+        if not proposal.files_to_modify and not proposal.files_to_create and not proposal.files_to_delete:
+            return False
+
+        # Check files to modify
+        for fc in proposal.files_to_modify:
+            full_path = os.path.realpath(os.path.abspath(os.path.join(context.repository_root, fc.path)))
+            if not os.path.exists(full_path):
+                return False
+            with open(full_path, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+            if compute_sha256(content) != fc.new_sha256:
+                return False
+
+        # Check files to create
+        for fc in proposal.files_to_create:
+            full_path = os.path.realpath(os.path.abspath(os.path.join(context.repository_root, fc.path)))
+            if not os.path.exists(full_path):
+                return False
+            with open(full_path, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+            if compute_sha256(content) != fc.new_sha256:
+                return False
+
+        # Check files to delete
+        for rel_del in proposal.files_to_delete:
+            full_path = os.path.realpath(os.path.abspath(os.path.join(context.repository_root, rel_del)))
+            if os.path.exists(full_path):
+                return False
+
+        return True
 
     def apply(self, context: OperatorContext, proposal: ProposedChange, approved: bool = False) -> ApplyResult:
         """
@@ -59,10 +93,22 @@ class EngineeringOperator(ABC):
                 f"Approval boundary rejected: operator '{self.name}' requires explicit approved=True to apply changes."
             )
 
-        # 1. Verify proposal preconditions & content hashes (stale check)
+        # 1. Double-apply check
+        if self.is_already_applied(context, proposal):
+            return ApplyResult(
+                success=True,
+                transaction_id=proposal.transaction_id,
+                files_modified=[fc.path for fc in proposal.files_to_modify],
+                files_created=[fc.path for fc in proposal.files_to_create],
+                files_deleted=proposal.files_to_delete,
+                rollback_available=True,
+                error="ALREADY_APPLIED: Proposal changes are already present in workspace."
+            )
+
+        # 2. Verify proposal preconditions & content hashes (stale check)
         self.verify_stale_hashes(context, proposal)
 
-        # 2. Execute file mutations and track created backups
+        # 3. Execute file mutations and track created backups
         files_modified = []
         files_created = []
         files_deleted = []
@@ -97,10 +143,9 @@ class EngineeringOperator(ABC):
                     os.remove(full_path)
                     files_deleted.append(rel_path)
 
-            # 3. Post-verification check
+            # 4. Post-verification check
             post_ver = self.verify_proposal(context, proposal)
             if not post_ver.passed:
-                # Post verification failed -> automatic rollback
                 self.rollback(context, proposal, files_modified, files_created, files_deleted)
                 return ApplyResult(
                     success=False,

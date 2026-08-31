@@ -31,16 +31,28 @@ class FileMoveOperator(EngineeringOperator):
             ]
         )
 
+    def _is_safe_path(self, root: str, target: str) -> bool:
+        try:
+            real_root = os.path.realpath(os.path.abspath(root))
+            real_target = os.path.realpath(os.path.abspath(os.path.join(root, target)))
+            return real_target.startswith(real_root) and real_target != real_root
+        except Exception:
+            return False
+
     def inspect(self, context: OperatorContext) -> Dict[str, Any]:
         params = context.classification.extracted_parameters
         source = params.get("source", "")
         destination = params.get("destination", "")
 
+        src_safe = self._is_safe_path(context.repository_root, source)
+        dst_safe = self._is_safe_path(context.repository_root, destination)
+
         src_full = os.path.realpath(os.path.abspath(os.path.join(context.repository_root, source)))
         dst_full = os.path.realpath(os.path.abspath(os.path.join(context.repository_root, destination)))
 
-        src_exists = src_full.startswith(context.repository_root) and os.path.exists(src_full)
-        dst_exists = dst_full.startswith(context.repository_root) and os.path.exists(dst_full)
+        src_exists = src_safe and os.path.exists(src_full)
+        dst_exists = dst_safe and os.path.exists(dst_full)
+        is_same = src_full == dst_full
 
         impacted_dependents = []
         if context.repo_snapshot and hasattr(context.repo_snapshot, 'dep_builder'):
@@ -49,8 +61,11 @@ class FileMoveOperator(EngineeringOperator):
         return {
             "source": source,
             "destination": destination,
+            "src_safe": src_safe,
+            "dst_safe": dst_safe,
             "source_exists": src_exists,
             "destination_exists": dst_exists,
+            "is_same": is_same,
             "impacted_dependents": impacted_dependents
         }
 
@@ -60,6 +75,12 @@ class FileMoveOperator(EngineeringOperator):
         destination = insp["destination"]
 
         preconditions = [
+            Precondition(
+                name="workspace_boundary_valid",
+                satisfied=insp["src_safe"] and insp["dst_safe"],
+                message=f"Paths '{source}' and '{destination}' remain strictly within workspace root."
+                if (insp["src_safe"] and insp["dst_safe"]) else f"Security rejection: Path traversal attempted outside workspace."
+            ),
             Precondition(
                 name="source_exists",
                 satisfied=insp["source_exists"],
@@ -71,6 +92,12 @@ class FileMoveOperator(EngineeringOperator):
                 satisfied=not insp["destination_exists"],
                 message=f"Destination file '{destination}' does not already exist."
                 if not insp["destination_exists"] else f"Destination file '{destination}' already exists."
+            ),
+            Precondition(
+                name="source_differs_from_destination",
+                satisfied=not insp["is_same"],
+                message="Source and destination paths are distinct."
+                if not insp["is_same"] else "Source and destination paths are identical."
             )
         ]
 
@@ -90,6 +117,20 @@ class FileMoveOperator(EngineeringOperator):
         )
 
     def propose(self, context: OperatorContext, plan: OperatorPlan) -> ProposedChange:
+        # Check failed preconditions
+        failed = [p for p in plan.preconditions if not p.satisfied]
+        if failed:
+            return ProposedChange(
+                operator_name=self.name,
+                transaction_id=context.transaction_id,
+                task_id=context.task_id,
+                files_to_create=[],
+                files_to_delete=[],
+                preconditions=plan.preconditions,
+                warnings=[p.message for p in failed],
+                risk=plan.estimated_risk
+            )
+
         params = context.classification.extracted_parameters
         source = params["source"]
         destination = params["destination"]
@@ -104,7 +145,6 @@ class FileMoveOperator(EngineeringOperator):
         sha = compute_sha256(content)
         diff = PatchManager.generate_diff("", content, destination)
 
-        # File creation at destination
         file_to_create = FileChange(
             path=destination,
             old_content=None,
@@ -117,8 +157,9 @@ class FileMoveOperator(EngineeringOperator):
         insp = self.inspect(context)
         warnings = []
         if insp["impacted_dependents"]:
+            deps_str = ", ".join(insp["impacted_dependents"])
             warnings.append(
-                f"File move affects {len(insp['impacted_dependents'])} dependent file(s): {', '.join(insp['impacted_dependents'])}."
+                f"REQUIRES_MANUAL_IMPORT_UPDATE: File move affects {len(insp['impacted_dependents'])} dependent file(s): [{deps_str}]. Update imports accordingly."
             )
 
         return ProposedChange(
@@ -137,13 +178,11 @@ class FileMoveOperator(EngineeringOperator):
         issues = []
 
         for fc in proposal.files_to_create:
-            full_path = os.path.realpath(os.path.abspath(os.path.join(context.repository_root, fc.path)))
-            if not full_path.startswith(context.repository_root):
+            if not self._is_safe_path(context.repository_root, fc.path):
                 issues.append(f"Destination path traversal outside repository root: {fc.path}")
 
         for rel_del in proposal.files_to_delete:
-            full_path = os.path.realpath(os.path.abspath(os.path.join(context.repository_root, rel_del)))
-            if not full_path.startswith(context.repository_root):
+            if not self._is_safe_path(context.repository_root, rel_del):
                 issues.append(f"Source path traversal outside repository root: {rel_del}")
 
         return VerificationResult(

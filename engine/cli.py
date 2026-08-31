@@ -10,6 +10,7 @@ from .operators.registry import OperatorRegistry
 from .operators.builtin.symbol_rename import SymbolRenameOperator
 from .operators.builtin.file_move import FileMoveOperator
 from .operators.context import OperatorContext
+from .runtime.verifier import VerificationPlanner, VerificationRunner
 from repository.scan import RepositoryAnalyzer
 
 def get_default_registry() -> OperatorRegistry:
@@ -74,12 +75,25 @@ def main():
     apply_p.add_argument("--root", default=".", help="Repository root path")
     apply_p.add_argument("--approved", action="store_true", help="Explicit human approval flag")
 
+    # verify-plan parser
+    vplan_p = subparsers.add_parser("verify-plan", help="Inspect verification plan for request (non-executing)")
+    vplan_p.add_argument("request", help="Request string")
+    vplan_p.add_argument("--root", default=".", help="Repository root path")
+
+    # verify parser
+    verify_p = subparsers.add_parser("verify", help="Apply proposal and run controlled verification pipeline")
+    verify_p.add_argument("request", help="Request string")
+    verify_p.add_argument("--root", default=".", help="Repository root path")
+    verify_p.add_argument("--approved", action="store_true", help="Explicit human approval flag for mutations and high-risk tests")
+
     args = parser.parse_args()
 
     store = TaskStore()
     sm = TaskStateMachine(store)
     classifier = TaskClassifier()
     registry = get_default_registry()
+    vplanner = VerificationPlanner()
+    vrunner = VerificationRunner(state_machine=sm)
 
     if args.command == "classify":
         repo_snapshot = RepositoryAnalyzer.analyze(args.root) if args.root else None
@@ -126,6 +140,58 @@ def main():
         try:
             apply_res = op.apply(ctx, proposal, approved=args.approved)
             print(json.dumps(asdict(apply_res), indent=2))
+        except Exception as e:
+            print(json.dumps({"error": str(e)}, indent=2))
+            sys.exit(1)
+
+    elif args.command == "verify-plan":
+        repo_snapshot = RepositoryAnalyzer.analyze(args.root)
+        classification = classifier.classify(args.request, repo_snapshot)
+        op = registry.get_operator_for_task(classification.task_type)
+        if not op:
+            print(json.dumps({"error": f"No operator found for task type {classification.task_type}"}, indent=2))
+            sys.exit(1)
+
+        ctx = OperatorContext(repository_root=args.root, task_id="CLI-VPLAN", classification=classification, repo_snapshot=repo_snapshot)
+        plan_res = op.plan(ctx)
+        proposal = op.propose(ctx, plan_res)
+        vplan = vplanner.build_plan(ctx.task_id, proposal, repo_snapshot)
+        print(json.dumps(asdict(vplan), indent=2))
+
+    elif args.command == "verify":
+        repo_snapshot = RepositoryAnalyzer.analyze(args.root)
+        classification = classifier.classify(args.request, repo_snapshot)
+        op = registry.get_operator_for_task(classification.task_type)
+        if not op:
+            print(json.dumps({"error": f"No operator found for task type {classification.task_type}"}, indent=2))
+            sys.exit(1)
+
+        # Create persistent task record
+        record = store.create_task(TaskRecord(
+            task_id="",
+            repository_root=args.root,
+            request=args.request,
+            status=TaskState.RECEIVED
+        ))
+        ctx = OperatorContext(repository_root=args.root, task_id=record.task_id, classification=classification, repo_snapshot=repo_snapshot)
+        plan_res = op.plan(ctx)
+        proposal = op.propose(ctx, plan_res)
+
+        try:
+            apply_res = op.apply(ctx, proposal, approved=args.approved)
+            if not apply_res.success:
+                print(json.dumps({"error": f"Apply failed: {apply_res.error}"}, indent=2))
+                sys.exit(1)
+
+            vplan = vplanner.build_plan(ctx.task_id, proposal, repo_snapshot)
+            vres = vrunner.run_verification(
+                context=ctx,
+                proposal=proposal,
+                operator=op,
+                plan=vplan,
+                execution_approved=args.approved
+            )
+            print(json.dumps(asdict(vres), indent=2))
         except Exception as e:
             print(json.dumps({"error": str(e)}, indent=2))
             sys.exit(1)

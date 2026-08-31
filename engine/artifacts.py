@@ -5,7 +5,7 @@ from typing import List, Optional
 class ArtifactManager:
     """
     Safely manages task artifacts under a configured artifact root directory.
-    Enforces path traversal safety to prevent escaping the artifact root.
+    Enforces path traversal safety using commonpath to prevent escaping the artifact root.
     """
     def __init__(self, artifact_root: Optional[str] = None):
         if artifact_root is None:
@@ -22,7 +22,10 @@ class ArtifactManager:
         clean_task_id = self._sanitize_path_segment(task_id)
         target_dir = os.path.realpath(os.path.abspath(os.path.join(self.artifact_root, clean_task_id)))
 
-        if not target_dir.startswith(self.artifact_root) or target_dir == self.artifact_root:
+        try:
+            if os.path.commonpath([self.artifact_root, target_dir]) != self.artifact_root or target_dir == self.artifact_root:
+                raise ValueError(f"Artifact path traversal blocked for task_id: {task_id}")
+        except ValueError:
             raise ValueError(f"Artifact path traversal blocked for task_id: {task_id}")
 
         os.makedirs(target_dir, exist_ok=True)
@@ -33,7 +36,10 @@ class ArtifactManager:
         clean_filename = self._sanitize_path_segment(filename)
         file_path = os.path.realpath(os.path.abspath(os.path.join(task_dir, clean_filename)))
 
-        if not file_path.startswith(task_dir):
+        try:
+            if os.path.commonpath([task_dir, file_path]) != task_dir:
+                raise ValueError(f"Artifact path traversal blocked for filename: {filename}")
+        except ValueError:
             raise ValueError(f"Artifact path traversal blocked for filename: {filename}")
 
         with open(file_path, "w", encoding="utf-8") as f:
@@ -46,7 +52,10 @@ class ArtifactManager:
         clean_filename = self._sanitize_path_segment(filename)
         file_path = os.path.realpath(os.path.abspath(os.path.join(task_dir, clean_filename)))
 
-        if not file_path.startswith(task_dir) or not os.path.exists(file_path):
+        try:
+            if os.path.commonpath([task_dir, file_path]) != task_dir or not os.path.exists(file_path):
+                return None
+        except ValueError:
             return None
 
         with open(file_path, "r", encoding="utf-8") as f:

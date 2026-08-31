@@ -1,6 +1,6 @@
 import os
 from typing import List, Dict, Any, Optional
-from engine.operators.base import EngineeringOperator, compute_sha256
+from engine.operators.base import EngineeringOperator, compute_sha256, is_safe_path
 from engine.operators.context import OperatorContext
 from engine.operators.models import (
     OperatorPlan,
@@ -31,21 +31,13 @@ class FileMoveOperator(EngineeringOperator):
             ]
         )
 
-    def _is_safe_path(self, root: str, target: str) -> bool:
-        try:
-            real_root = os.path.realpath(os.path.abspath(root))
-            real_target = os.path.realpath(os.path.abspath(os.path.join(root, target)))
-            return real_target.startswith(real_root) and real_target != real_root
-        except Exception:
-            return False
-
     def inspect(self, context: OperatorContext) -> Dict[str, Any]:
         params = context.classification.extracted_parameters
         source = params.get("source", "")
         destination = params.get("destination", "")
 
-        src_safe = self._is_safe_path(context.repository_root, source)
-        dst_safe = self._is_safe_path(context.repository_root, destination)
+        src_safe = is_safe_path(context.repository_root, source)
+        dst_safe = is_safe_path(context.repository_root, destination)
 
         src_full = os.path.realpath(os.path.abspath(os.path.join(context.repository_root, source)))
         dst_full = os.path.realpath(os.path.abspath(os.path.join(context.repository_root, destination)))
@@ -178,11 +170,11 @@ class FileMoveOperator(EngineeringOperator):
         issues = []
 
         for fc in proposal.files_to_create:
-            if not self._is_safe_path(context.repository_root, fc.path):
+            if not is_safe_path(context.repository_root, fc.path):
                 issues.append(f"Destination path traversal outside repository root: {fc.path}")
 
         for rel_del in proposal.files_to_delete:
-            if not self._is_safe_path(context.repository_root, rel_del):
+            if not is_safe_path(context.repository_root, rel_del):
                 issues.append(f"Source path traversal outside repository root: {rel_del}")
 
         return VerificationResult(

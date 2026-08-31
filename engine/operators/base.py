@@ -17,6 +17,14 @@ from engine.classifier.models import TaskType
 def compute_sha256(content: str) -> str:
     return hashlib.sha256(content.encode('utf-8')).hexdigest()
 
+def is_safe_path(root: str, target: str) -> bool:
+    try:
+        real_root = os.path.realpath(os.path.abspath(root))
+        real_target = os.path.realpath(os.path.abspath(os.path.join(real_root, target)))
+        return os.path.commonpath([real_root, real_target]) == real_root
+    except Exception:
+        return False
+
 class EngineeringOperator(ABC):
     """
     Abstract interface for Mini-Jules Engineering Operators.
@@ -116,10 +124,10 @@ class EngineeringOperator(ABC):
         try:
             # Files to modify
             for fc in proposal.files_to_modify:
-                full_path = os.path.realpath(os.path.abspath(os.path.join(context.repository_root, fc.path)))
-                if not full_path.startswith(context.repository_root):
+                if not is_safe_path(context.repository_root, fc.path):
                     raise ValueError(f"Path traversal blocked: {fc.path}")
 
+                full_path = os.path.realpath(os.path.abspath(os.path.join(context.repository_root, fc.path)))
                 os.makedirs(os.path.dirname(full_path), exist_ok=True)
                 with open(full_path, "w", encoding="utf-8") as f:
                     f.write(fc.new_content or "")
@@ -127,10 +135,10 @@ class EngineeringOperator(ABC):
 
             # Files to create
             for fc in proposal.files_to_create:
-                full_path = os.path.realpath(os.path.abspath(os.path.join(context.repository_root, fc.path)))
-                if not full_path.startswith(context.repository_root):
+                if not is_safe_path(context.repository_root, fc.path):
                     raise ValueError(f"Path traversal blocked: {fc.path}")
 
+                full_path = os.path.realpath(os.path.abspath(os.path.join(context.repository_root, fc.path)))
                 os.makedirs(os.path.dirname(full_path), exist_ok=True)
                 with open(full_path, "w", encoding="utf-8") as f:
                     f.write(fc.new_content or "")
@@ -138,8 +146,11 @@ class EngineeringOperator(ABC):
 
             # Files to delete
             for rel_path in proposal.files_to_delete:
+                if not is_safe_path(context.repository_root, rel_path):
+                    raise ValueError(f"Path traversal blocked: {rel_path}")
+
                 full_path = os.path.realpath(os.path.abspath(os.path.join(context.repository_root, rel_path)))
-                if full_path.startswith(context.repository_root) and os.path.exists(full_path):
+                if os.path.exists(full_path):
                     os.remove(full_path)
                     files_deleted.append(rel_path)
 
@@ -172,6 +183,9 @@ class EngineeringOperator(ABC):
 
     def verify_stale_hashes(self, context: OperatorContext, proposal: ProposedChange):
         for fc in proposal.files_to_modify:
+            if not is_safe_path(context.repository_root, fc.path):
+                raise ValueError(f"Path traversal blocked: {fc.path}")
+
             full_path = os.path.realpath(os.path.abspath(os.path.join(context.repository_root, fc.path)))
             if not os.path.exists(full_path):
                 raise StaleProposalError(f"Stale proposal: file '{fc.path}' no longer exists.")
@@ -202,17 +216,18 @@ class EngineeringOperator(ABC):
             # Restore modified files
             for fc in proposal.files_to_modify:
                 if fc.path in files_to_restore and fc.old_content is not None:
-                    full_path = os.path.realpath(os.path.abspath(os.path.join(context.repository_root, fc.path)))
-                    if full_path.startswith(context.repository_root):
+                    if is_safe_path(context.repository_root, fc.path):
+                        full_path = os.path.realpath(os.path.abspath(os.path.join(context.repository_root, fc.path)))
                         with open(full_path, "w", encoding="utf-8") as f:
                             f.write(fc.old_content)
 
             # Delete created files
             for fc in proposal.files_to_create:
                 if fc.path in files_to_remove:
-                    full_path = os.path.realpath(os.path.abspath(os.path.join(context.repository_root, fc.path)))
-                    if full_path.startswith(context.repository_root) and os.path.exists(full_path):
-                        os.remove(full_path)
+                    if is_safe_path(context.repository_root, fc.path):
+                        full_path = os.path.realpath(os.path.abspath(os.path.join(context.repository_root, fc.path)))
+                        if os.path.exists(full_path):
+                            os.remove(full_path)
 
             return True
         except Exception:

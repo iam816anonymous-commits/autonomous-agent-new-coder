@@ -1,0 +1,101 @@
+import argparse
+import json
+import sys
+from dataclasses import asdict
+from .models import TaskRecord, TaskState, ActorType
+from .store import TaskStore
+from .state_machine import TaskStateMachine
+
+def main():
+    parser = argparse.ArgumentParser(description="Mini-Jules Task State Machine CLI")
+    subparsers = parser.add_subparsers(dest="command", help="Subcommand to run")
+
+    # task parser
+    task_parser = subparsers.add_parser("task", help="Task management commands")
+    task_sub = task_parser.add_subparsers(dest="task_command", help="Task action")
+
+    # task create
+    create_p = task_sub.add_parser("create", help="Create a new task record")
+    create_p.add_argument("--root", required=True, help="Repository root path")
+    create_p.add_argument("--request", required=True, help="Task request string")
+
+    # task get
+    get_p = task_sub.add_parser("get", help="Get a task record by ID")
+    get_p.add_argument("task_id", help="Task ID")
+
+    # task status / transition
+    trans_p = task_sub.add_parser("transition", help="Transition task state")
+    trans_p.add_argument("task_id", help="Task ID")
+    trans_p.add_argument("target", help="Target TaskState enum value")
+    trans_p.add_argument("--reason", required=True, help="Reason for transition")
+    trans_p.add_argument("--actor", default="SYSTEM", help="Actor type (SYSTEM, USER, AGENT, RECOVERY)")
+
+    # task list
+    list_p = task_sub.add_parser("list", help="List tasks")
+    list_p.add_argument("--status", help="Filter by TaskState enum value")
+
+    # task events
+    events_p = task_sub.add_parser("events", help="Get event audit history for a task")
+    events_p.add_argument("task_id", help="Task ID")
+
+    # task recover
+    recover_p = task_sub.add_parser("recover", help="Recover interrupted tasks left in active states")
+
+    args = parser.parse_args()
+
+    store = TaskStore()
+    sm = TaskStateMachine(store)
+
+    if args.command == "task":
+        if args.task_command == "create":
+            record = TaskRecord(
+                task_id=store.generate_task_id(),
+                repository_root=args.root,
+                request=args.request,
+                status=TaskState.RECEIVED
+            )
+            created = store.create_task(record)
+            print(json.dumps(asdict(created), indent=2))
+
+        elif args.task_command == "get":
+            task = store.get_task(args.task_id)
+            if not task:
+                print(json.dumps({"error": f"Task {args.task_id} not found"}, indent=2))
+                sys.exit(1)
+            print(json.dumps(asdict(task), indent=2))
+
+        elif args.task_command == "transition":
+            try:
+                target_state = TaskState(args.target.upper())
+                actor = ActorType(args.actor.upper())
+                updated = sm.transition(
+                    task_id=args.task_id,
+                    target_state=target_state,
+                    reason=args.reason,
+                    actor=actor
+                )
+                print(json.dumps(asdict(updated), indent=2))
+            except Exception as e:
+                print(json.dumps({"error": str(e)}, indent=2))
+                sys.exit(1)
+
+        elif args.task_command == "list":
+            status_enum = TaskState(args.status.upper()) if args.status else None
+            tasks = store.list_tasks(status=status_enum)
+            print(json.dumps([asdict(t) for t in tasks], indent=2))
+
+        elif args.task_command == "events":
+            evts = store.get_task_events(args.task_id)
+            print(json.dumps([asdict(e) for e in evts], indent=2))
+
+        elif args.task_command == "recover":
+            recovered = sm.recover_interrupted_tasks()
+            print(json.dumps([asdict(t) for t in recovered], indent=2))
+
+        else:
+            task_parser.print_help()
+    else:
+        parser.print_help()
+
+if __name__ == "__main__":
+    main()

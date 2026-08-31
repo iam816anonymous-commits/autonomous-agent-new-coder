@@ -77,7 +77,7 @@ class InvalidStateTransitionError(Exception):
 class TaskStateMachine:
     """
     Explicit Task State Machine for Mini-Jules.
-    Guarantees deterministic lifecycle transitions, idempotency, and process crash recovery.
+    Guarantees deterministic lifecycle transitions, idempotency, lease management, and process crash recovery.
     """
     def __init__(self, store: Optional[TaskStore] = None):
         self.store = store or TaskStore()
@@ -125,6 +125,12 @@ class TaskStateMachine:
         )
         return updated_task
 
+    def acquire_lease(self, task_id: str, worker_id: str) -> bool:
+        return self.store.acquire_lease(task_id, worker_id)
+
+    def heartbeat(self, task_id: str, worker_id: str) -> bool:
+        return self.store.update_heartbeat(task_id, worker_id)
+
     def recover_interrupted_tasks(self) -> List[TaskRecord]:
         """
         Scans for tasks left in non-terminal execution states following a process crash
@@ -147,5 +153,28 @@ class TaskStateMachine:
                 recovered_tasks.append(updated)
             except ConcurrencyError:
                 pass # Another worker recovered it
+
+        return recovered_tasks
+
+    def recover_stale_leases(self, lease_timeout_seconds: float = 60.0) -> List[TaskRecord]:
+        """
+        Scans for active tasks whose worker lease heartbeat has expired and transitions them to RECOVERY_REQUIRED.
+        """
+        stale = self.store.list_stale_tasks(lease_timeout_seconds=lease_timeout_seconds)
+        recovered_tasks = []
+
+        for task in stale:
+            try:
+                updated = self.store.update_task_state_atomic(
+                    task_id=task.task_id,
+                    from_state=task.status,
+                    to_state=TaskState.RECOVERY_REQUIRED,
+                    expected_version=task.version,
+                    reason=f"Worker lease expired (no heartbeat for > {lease_timeout_seconds}s); recovery required.",
+                    actor=ActorType.RECOVERY
+                )
+                recovered_tasks.append(updated)
+            except ConcurrencyError:
+                pass
 
         return recovered_tasks

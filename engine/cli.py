@@ -5,9 +5,11 @@ from dataclasses import asdict
 from .models import TaskRecord, TaskState, ActorType
 from .store import TaskStore
 from .state_machine import TaskStateMachine
+from .classifier.classifier import TaskClassifier
+from repository.scan import RepositoryAnalyzer
 
 def main():
-    parser = argparse.ArgumentParser(description="Mini-Jules Task State Machine CLI")
+    parser = argparse.ArgumentParser(description="Mini-Jules Task Engine & Classifier CLI")
     subparsers = parser.add_subparsers(dest="command", help="Subcommand to run")
 
     # task parser
@@ -41,12 +43,23 @@ def main():
     # task recover
     recover_p = task_sub.add_parser("recover", help="Recover interrupted tasks left in active states")
 
+    # classify parser
+    classify_p = subparsers.add_parser("classify", help="Deterministically classify an engineering request")
+    classify_p.add_argument("request", help="Natural language request string")
+    classify_p.add_argument("--root", help="Optional repository root path for context-aware classification")
+
     args = parser.parse_args()
 
     store = TaskStore()
     sm = TaskStateMachine(store)
+    classifier = TaskClassifier()
 
-    if args.command == "task":
+    if args.command == "classify":
+        repo_snapshot = RepositoryAnalyzer.analyze(args.root) if args.root else None
+        res = classifier.classify(args.request, repo_snapshot)
+        print(json.dumps(asdict(res), indent=2))
+
+    elif args.command == "task":
         if args.task_command == "create":
             record = TaskRecord(
                 task_id=store.generate_task_id(),

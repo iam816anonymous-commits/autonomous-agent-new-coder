@@ -14,7 +14,7 @@ class ConcurrencyError(Exception):
 class TaskStore:
     """
     Persistent SQLite storage layer for Mini-Jules Task Records and immutable Task Event histories.
-    Includes optimistic concurrency control, schema versioning, and crash recovery queries.
+    Includes optimistic concurrency control, schema versioning, lease/heartbeat management, and crash recovery queries.
     """
     def __init__(self, db_path: Optional[str] = None):
         if db_path is None:
@@ -313,15 +313,47 @@ class TaskStore:
 
         return record
 
+    def acquire_lease(self, task_id: str, worker_id: str) -> bool:
+        now = time.time()
+        with self.db_manager.transaction() as cursor:
+            cursor.execute("""
+                UPDATE engine_tasks
+                SET worker_id = ?, lease_started_at = ?, heartbeat_at = ?
+                WHERE task_id = ?
+            """, (worker_id, now, now, task_id))
+            return cursor.rowcount == 1
+
     def update_heartbeat(self, task_id: str, worker_id: str) -> bool:
         now = time.time()
         with self.db_manager.transaction() as cursor:
             cursor.execute("""
                 UPDATE engine_tasks
-                SET worker_id = ?, heartbeat_at = ?
-                WHERE task_id = ?
-            """, (worker_id, now, task_id))
+                SET heartbeat_at = ?
+                WHERE task_id = ? AND worker_id = ?
+            """, (now, task_id, worker_id))
             return cursor.rowcount == 1
+
+    def list_stale_tasks(self, lease_timeout_seconds: float = 60.0) -> List[TaskRecord]:
+        """Finds active tasks whose lease heartbeat has expired."""
+        now = time.time()
+        cutoff = now - lease_timeout_seconds
+        active_states = [
+            TaskState.ANALYZING.value,
+            TaskState.EXECUTING.value,
+            TaskState.VERIFYING.value,
+            TaskState.REPAIRING.value,
+            TaskState.REVERIFYING.value,
+            TaskState.APPLYING.value
+        ]
+        placeholders = ",".join(["?"] * len(active_states))
+        with self.db_manager.connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                f"SELECT * FROM engine_tasks WHERE status IN ({placeholders}) AND (heartbeat_at IS NULL OR heartbeat_at < ?)",
+                (*active_states, cutoff)
+            )
+            rows = cursor.fetchall()
+            return [self._deserialize_task(r) for r in rows]
 
     def list_tasks(self, status: Optional[TaskState] = None, limit: int = 100) -> List[TaskRecord]:
         with self.db_manager.connection() as conn:

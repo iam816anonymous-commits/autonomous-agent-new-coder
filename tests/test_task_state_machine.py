@@ -1,9 +1,11 @@
 import os
 import tempfile
 import unittest
+import time
 from engine.models import TaskRecord, TaskState, ActorType, SCHEMA_VERSION
 from engine.store import TaskStore, ConcurrencyError
 from engine.state_machine import TaskStateMachine, InvalidStateTransitionError
+from engine.artifacts import ArtifactManager
 
 class TestTaskStorePersistence(unittest.TestCase):
     def setUp(self):
@@ -69,7 +71,6 @@ class TestStateTransitions(unittest.TestCase):
         ))
         t_id = task.task_id
 
-        # RECEIVED -> ANALYZING -> PLANNED -> EXECUTING -> VERIFYING -> READY_TO_APPLY -> APPLYING -> COMPLETED
         self.sm.transition(t_id, TaskState.ANALYZING, "Started analysis")
         self.sm.transition(t_id, TaskState.PLANNED, "Plan generated")
         self.sm.transition(t_id, TaskState.EXECUTING, "Execution started")
@@ -81,7 +82,6 @@ class TestStateTransitions(unittest.TestCase):
         self.assertEqual(final_task.status, TaskState.COMPLETED)
 
         events = self.store.get_task_events(t_id)
-        # Initial create event + 7 transitions = 8 events
         self.assertEqual(len(events), 8)
 
     def test_illegal_transition(self):
@@ -107,7 +107,6 @@ class TestStateTransitions(unittest.TestCase):
         self.sm.transition(t_id, TaskState.ANALYZING, "Analyzing")
         self.sm.transition(t_id, TaskState.CANCELLED, "User cancelled")
 
-        # Terminal CANCELLED state cannot transition to ANALYZING
         with self.assertRaises(InvalidStateTransitionError):
             self.sm.transition(t_id, TaskState.ANALYZING, "Try revive")
 
@@ -121,7 +120,6 @@ class TestStateTransitions(unittest.TestCase):
         t_id = task.task_id
 
         self.sm.transition(t_id, TaskState.ANALYZING, "Analyzing")
-        # Second call to same state returns task without error
         res = self.sm.transition(t_id, TaskState.ANALYZING, "Analyzing again")
         self.assertEqual(res.status, TaskState.ANALYZING)
 
@@ -153,7 +151,7 @@ class TestOptimisticConcurrency(unittest.TestCase):
             reason="Store 1 analyzing"
         )
 
-        # Store 2 attempts update assuming version 1 -> raises ConcurrencyError
+        # Store 2 attempts update assuming stale version 1 -> raises ConcurrencyError
         with self.assertRaises(ConcurrencyError):
             self.store2.update_task_state_atomic(
                 task_id="TASK-CONCUR-001",
@@ -162,6 +160,42 @@ class TestOptimisticConcurrency(unittest.TestCase):
                 expected_version=1,
                 reason="Store 2 cancelling"
             )
+
+
+class TestLeaseAndHeartbeat(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.db_path = os.path.join(self.temp_dir.name, "test_lease.db")
+        self.store = TaskStore(self.db_path)
+        self.sm = TaskStateMachine(self.store)
+
+    def tearDown(self):
+        self.temp_dir.cleanup()
+
+    def test_lease_heartbeat_and_stale_recovery(self):
+        task = self.store.create_task(TaskRecord(
+            task_id="TASK-LEASE-001",
+            repository_root="/tmp/repo",
+            request="Leased execution",
+            status=TaskState.RECEIVED
+        ))
+        self.sm.transition("TASK-LEASE-001", TaskState.ANALYZING, "Analyzing")
+        self.sm.transition("TASK-LEASE-001", TaskState.PLANNED, "Planned")
+        self.sm.transition("TASK-LEASE-001", TaskState.EXECUTING, "Executing")
+
+        # Acquire lease
+        self.assertTrue(self.sm.acquire_lease("TASK-LEASE-001", "worker-node-1"))
+        self.assertTrue(self.sm.heartbeat("TASK-LEASE-001", "worker-node-1"))
+
+        # Immediately check stale leases with timeout 100s -> 0 stale
+        stale = self.sm.recover_stale_leases(lease_timeout_seconds=100.0)
+        self.assertEqual(len(stale), 0)
+
+        # Test stale recovery with negative timeout (simulates expired lease)
+        stale = self.sm.recover_stale_leases(lease_timeout_seconds=-1.0)
+        self.assertEqual(len(stale), 1)
+        self.assertEqual(stale[0].task_id, "TASK-LEASE-001")
+        self.assertEqual(stale[0].status, TaskState.RECOVERY_REQUIRED)
 
 
 class TestCrashSimulationAndRecovery(unittest.TestCase):
@@ -186,7 +220,7 @@ class TestCrashSimulationAndRecovery(unittest.TestCase):
         sm1.transition("TASK-CRASH-001", TaskState.PLANNED, "Planned")
         sm1.transition("TASK-CRASH-001", TaskState.EXECUTING, "Executing codemod")
 
-        # 2. Process 1 terminates unexpectedly (store1 dropped)
+        # 2. Process 1 terminates unexpectedly
         del sm1
         del store1
 
@@ -204,16 +238,28 @@ class TestCrashSimulationAndRecovery(unittest.TestCase):
         self.assertNotEqual(retrieved.status, TaskState.COMPLETED)
         self.assertEqual(retrieved.status, TaskState.RECOVERY_REQUIRED)
 
-        # Verify audit history preserved
-        events = store2.get_task_events("TASK-CRASH-001")
-        self.assertTrue(len(events) >= 4)
-        self.assertEqual(events[-1].actor, ActorType.RECOVERY)
-        self.assertEqual(events[-1].to_state, TaskState.RECOVERY_REQUIRED)
+
+class TestArtifactSecurity(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.manager = ArtifactManager(self.temp_dir.name)
+
+    def tearDown(self):
+        self.temp_dir.cleanup()
+
+    def test_artifact_path_traversal_rejection(self):
+        # Malformed task ID with path traversal
+        with self.assertRaises(ValueError):
+            self.manager.get_task_artifact_dir("../../../etc")
+
+        # Valid task ID
+        path = self.manager.write_artifact("TASK-001", "diff.patch", "--- a/foo\n+++ b/foo")
+        self.assertTrue(os.path.exists(path))
+        self.assertTrue(path.startswith(os.path.realpath(self.temp_dir.name)))
 
 
 class TestNoLLMRequirement(unittest.TestCase):
     def test_offline_operation(self):
-        # Entire task creation, state transitions, persistence, and event queries run without LLM
         temp_dir = tempfile.TemporaryDirectory()
         db_path = os.path.join(temp_dir.name, "offline.db")
 

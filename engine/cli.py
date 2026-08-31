@@ -16,6 +16,11 @@ from .runtime.sandbox.models import SandboxSpec, SandboxMode, ExecutionTrustLeve
 from .runtime.sandbox.container_backend import ContainerSandboxBackend
 from .runtime.sandbox.snapshot import WorkspaceSnapshotter
 from .orchestrator.orchestrator import EngineeringOrchestrator
+from .orchestrator.durability.store import DurableStore
+from .orchestrator.durability.models import ReplayRequest, ReplayMode
+from .orchestrator.durability.resume import WorkflowResumer
+from .orchestrator.durability.replay import WorkflowReplayEngine
+from .orchestrator.durability.recovery import WorkflowRecoveryManager
 from repository.scan import RepositoryAnalyzer
 
 def get_default_registry() -> OperatorRegistry:
@@ -112,6 +117,27 @@ def main():
     orch_p.add_argument("--root", default=".", help="Repository root path")
     orch_p.add_argument("--approved", action="store_true", help="Explicit human approval flag")
 
+    # workflow parser
+    wf_p = subparsers.add_parser("workflow", help="Durable workflow management commands")
+    wf_sub = wf_p.add_subparsers(dest="wf_command", help="Workflow action")
+
+    wf_status_p = wf_sub.add_parser("status", help="Get workflow execution status")
+    wf_status_p.add_argument("workflow_id", help="Workflow ID")
+
+    wf_chks_p = wf_sub.add_parser("checkpoints", help="List workflow checkpoints")
+    wf_chks_p.add_argument("workflow_id", help="Workflow ID")
+
+    wf_events_p = wf_sub.add_parser("events", help="List workflow event log")
+    wf_events_p.add_argument("workflow_id", help="Workflow ID")
+
+    wf_resume_p = wf_sub.add_parser("resume", help="Resume interrupted workflow")
+    wf_resume_p.add_argument("workflow_id", help="Workflow ID")
+    wf_resume_p.add_argument("--root", default=".", help="Repository root path")
+
+    wf_replay_p = wf_sub.add_parser("replay", help="Deterministically replay workflow")
+    wf_replay_p.add_argument("workflow_id", help="Workflow ID")
+    wf_replay_p.add_argument("--mode", default="DRY_RUN", help="DRY_RUN, VALIDATION_ONLY, or FULL_REPLAY")
+
     args = parser.parse_args()
 
     store = TaskStore()
@@ -137,6 +163,52 @@ def main():
         orchestrator = EngineeringOrchestrator(store=store, registry=registry, sandbox_manager=sb_manager)
         report = orchestrator.run(repository_root=args.root, request_string=args.request, approved=args.approved)
         print(json.dumps(asdict(report), indent=2))
+
+    elif args.command == "workflow":
+        durable_store = DurableStore()
+        if args.wf_command == "status":
+            wf = durable_store.get_workflow(args.workflow_id)
+            if not wf:
+                print(json.dumps({"error": f"Workflow {args.workflow_id} not found"}, indent=2))
+                sys.exit(1)
+            print(json.dumps(asdict(wf), indent=2))
+
+        elif args.wf_command == "checkpoints":
+            chks = durable_store.list_checkpoints(args.workflow_id)
+            print(json.dumps([asdict(c) for c in chks], indent=2))
+
+        elif args.wf_command == "events":
+            evts = durable_store.list_events(args.workflow_id)
+            print(json.dumps([asdict(e) for e in evts], indent=2))
+
+        elif args.wf_command == "resume":
+            resumer = WorkflowResumer(durable_store)
+            snap = WorkspaceSnapshotter.capture(args.root)
+            try:
+                res = resumer.resume_workflow(args.workflow_id, snap.summary_hash)
+                print(json.dumps(res, indent=2))
+            except Exception as e:
+                print(json.dumps({"error": str(e)}, indent=2))
+                sys.exit(1)
+
+        elif args.wf_command == "replay":
+            replay_eng = WorkflowReplayEngine(durable_store)
+            snap = WorkspaceSnapshotter.capture(".")
+            req = ReplayRequest(
+                source_workflow_id=args.workflow_id,
+                requested_by="CLI",
+                replay_mode=ReplayMode(args.mode.upper()),
+                expected_workspace_fingerprint=snap.summary_hash
+            )
+            try:
+                res = replay_eng.replay_workflow(req)
+                print(json.dumps(res, indent=2))
+            except Exception as e:
+                print(json.dumps({"error": str(e)}, indent=2))
+                sys.exit(1)
+
+        else:
+            wf_p.print_help()
 
     elif args.command == "sandbox-snapshot":
         snap = WorkspaceSnapshotter.capture(args.root)

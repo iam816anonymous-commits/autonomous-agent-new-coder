@@ -2,11 +2,44 @@ import os
 import subprocess
 import time
 import uuid
+import hashlib
 from typing import Dict, Any, Optional, List
 from abc import ABC, abstractmethod
 from .models import ExecutionResult, ExecutionStatus, CommandDefinition
 from .policy import RuntimePolicy
 from .errors import ExecutionTimeoutError
+
+IGNORE_HASH_DIRS = {
+    ".git", "venv", ".venv", "artifacts", "node_modules",
+    "__pycache__", ".pytest_cache", "dist", "build"
+}
+
+def compute_workspace_snapshot_hash(repo_root: str) -> str:
+    """
+    Computes a deterministic lightweight workspace identity hash.
+    Skips ignored directories (.git, venv, artifacts, node_modules, __pycache__).
+    """
+    hasher = hashlib.sha256()
+    real_root = os.path.realpath(os.path.abspath(repo_root))
+
+    for current_root, dirs, files in os.walk(real_root, followlinks=False):
+        dirs[:] = [d for d in dirs if d not in IGNORE_HASH_DIRS and not d.startswith(".")]
+
+        for filename in sorted(files):
+            full_path = os.path.join(current_root, filename)
+            rel_path = os.path.relpath(full_path, real_root).replace("\\", "/")
+
+            hasher.update(rel_path.encode("utf-8"))
+
+            # Hash file content if under 5MB
+            try:
+                if os.path.getsize(full_path) < 5 * 1024 * 1024:
+                    with open(full_path, "rb") as f:
+                        hasher.update(f.read())
+            except Exception:
+                pass
+
+    return hasher.hexdigest()
 
 class ExecutionEnvironment(ABC):
     """
@@ -26,7 +59,8 @@ class ExecutionEnvironment(ABC):
 class LocalRestrictedEnvironment(ExecutionEnvironment):
     """
     Local restricted subprocess execution environment.
-    Strictly uses shell=False, enforces realpath boundaries, timeouts, output limits, and secret scrubbing.
+    Strictly uses shell=False, enforces realpath boundaries, timeouts, output limits, secret scrubbing,
+    and workspace change detection.
     """
     def __init__(self, policy: Optional[RuntimePolicy] = None):
         self.policy = policy or RuntimePolicy()
@@ -46,6 +80,7 @@ class LocalRestrictedEnvironment(ExecutionEnvironment):
         env = self.policy.sanitize_environment()
 
         timeout = min(command_def.timeout_seconds, self.policy.max_timeout_seconds)
+        snapshot_before = compute_workspace_snapshot_hash(repo_root)
         started_at = time.time()
 
         try:
@@ -54,19 +89,19 @@ class LocalRestrictedEnvironment(ExecutionEnvironment):
                 cwd=valid_cwd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                text=True,
+                text=False,  # Binary capture for safe decoding
                 shell=False,
                 env=env
             )
 
             try:
-                stdout_raw, stderr_raw = proc.communicate(timeout=timeout)
+                stdout_bytes, stderr_bytes = proc.communicate(timeout=timeout)
                 finished_at = time.time()
                 exit_code = proc.returncode
                 status = ExecutionStatus.PASSED if exit_code == 0 else ExecutionStatus.FAILED
             except subprocess.TimeoutExpired:
                 proc.kill()
-                stdout_raw, stderr_raw = proc.communicate()
+                stdout_bytes, stderr_bytes = proc.communicate()
                 finished_at = time.time()
                 exit_code = -1
                 status = ExecutionStatus.TIMED_OUT
@@ -82,24 +117,29 @@ class LocalRestrictedEnvironment(ExecutionEnvironment):
                 finished_at=finished_at,
                 duration=finished_at - started_at,
                 stdout="",
-                stderr=f"Runtime crash: {str(e)}",
-                stdout_truncated=False,
-                stderr_truncated=False
+                stderr=self.policy.redact_text(f"Runtime crash: {str(e)}"),
+                resolved_executable=command_def.executable,
+                arguments=cmd_args,
+                working_directory=working_directory,
+                workspace_snapshot_hash=snapshot_before
             )
 
-        # Output truncation checks
-        stdout_bytes = stdout_raw.encode("utf-8")
-        stderr_bytes = stderr_raw.encode("utf-8")
+        snapshot_after = compute_workspace_snapshot_hash(repo_root)
+        if snapshot_before != snapshot_after:
+            status = ExecutionStatus.WORKSPACE_CHANGED
 
+        # Output truncation & secret redaction
         stdout_trunc = len(stdout_bytes) > self.policy.max_stdout_bytes
         stderr_trunc = len(stderr_bytes) > self.policy.max_stderr_bytes
 
-        stdout = stdout_bytes[:self.policy.max_stdout_bytes].decode("utf-8", errors="ignore")
-        stderr = stderr_bytes[:self.policy.max_stderr_bytes].decode("utf-8", errors="ignore")
+        stdout_raw = stdout_bytes[:self.policy.max_stdout_bytes].decode("utf-8", errors="replace")
+        stderr_raw = stderr_bytes[:self.policy.max_stderr_bytes].decode("utf-8", errors="replace")
 
-        if stdout_trunc or stderr_trunc:
-            if status == ExecutionStatus.PASSED:
-                status = ExecutionStatus.OUTPUT_LIMIT_EXCEEDED
+        stdout = self.policy.redact_text(stdout_raw)
+        stderr = self.policy.redact_text(stderr_raw)
+
+        if (stdout_trunc or stderr_trunc) and status == ExecutionStatus.PASSED:
+            status = ExecutionStatus.OUTPUT_LIMIT_EXCEEDED
 
         return ExecutionResult(
             command_id=command_def.name,
@@ -111,6 +151,12 @@ class LocalRestrictedEnvironment(ExecutionEnvironment):
             duration=finished_at - started_at,
             stdout=stdout,
             stderr=stderr,
+            resolved_executable=command_def.executable,
+            arguments=cmd_args,
+            working_directory=working_directory,
+            policy_decision="PERMITTED",
+            workspace_snapshot_hash=snapshot_after,
+            environment_mode="LOCAL_RESTRICTED",
             stdout_truncated=stdout_trunc,
             stderr_truncated=stderr_trunc
         )

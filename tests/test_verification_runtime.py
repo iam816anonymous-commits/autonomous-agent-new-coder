@@ -76,7 +76,7 @@ class TestVerificationRuntime(unittest.TestCase):
         self.assertEqual(vres.status, VerificationStatus.PASSED)
         self.assertFalse(vres.rollback_executed)
 
-    def test_verification_failure_triggers_rollback(self):
+    def test_verification_failure_without_auto_rollback(self):
         planner = VerificationPlanner()
         runner = VerificationRunner()
 
@@ -96,11 +96,38 @@ class TestVerificationRuntime(unittest.TestCase):
             proposal=proposal,
             operator=self.op,
             plan=vplan,
-            execution_approved=True
+            execution_approved=True,
+            auto_rollback_on_failure=False
         )
 
-        # Verification status should be ROLLED_BACK or FAILED
-        self.assertIn(vres.status, [VerificationStatus.ROLLED_BACK, VerificationStatus.FAILED])
+        self.assertEqual(vres.status, VerificationStatus.APPLIED_BUT_VERIFICATION_FAILED)
+        self.assertFalse(vres.rollback_executed)
+
+    def test_verification_failure_triggers_auto_rollback(self):
+        planner = VerificationPlanner()
+        runner = VerificationRunner()
+
+        plan_res = self.op.plan(self.context)
+        proposal = self.op.propose(self.context, plan_res)
+
+        # Apply proposal
+        self.op.apply(self.context, proposal, approved=True)
+
+        # Corrupt file syntax before verification runs
+        with open(self.utils_path, "w") as f:
+            f.write("def calculate_invoice_total(a, b syntax_error_here\n")
+
+        vplan = planner.build_plan(self.context.task_id, proposal, self.snapshot)
+        vres = runner.run_verification(
+            context=self.context,
+            proposal=proposal,
+            operator=self.op,
+            plan=vplan,
+            execution_approved=True,
+            auto_rollback_on_failure=True
+        )
+
+        self.assertEqual(vres.status, VerificationStatus.ROLLED_BACK)
         self.assertTrue(vres.rollback_executed)
 
         # Operator targeted rollback restored valid syntax

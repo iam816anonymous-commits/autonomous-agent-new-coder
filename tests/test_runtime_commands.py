@@ -1,7 +1,7 @@
 import unittest
 from engine.runtime.command_registry import CommandRegistry
 from engine.runtime.models import CommandDefinition, CommandCategory, ExecutionRiskLevel
-from engine.runtime.errors import CommandRejectedError, PolicyViolationError
+from engine.runtime.errors import CommandRejectedError, PolicyViolationError, ArgumentNotAllowedError
 
 class TestCommandRegistry(unittest.TestCase):
     def setUp(self):
@@ -35,8 +35,18 @@ class TestCommandRegistry(unittest.TestCase):
                 name="malicious_arg",
                 category=CommandCategory.SYNTAX_CHECK,
                 executable="python3",
-                base_arguments=["-c", "import os; os.system('rm -rf /')"]
+                base_arguments=["|", "rm", "-rf", "/"]
             ))
+
+    def test_extra_argument_schema_validation(self):
+        cmd = self.registry.get("python_syntax_check")
+
+        # Valid argument matching pattern
+        self.registry.validate_extra_arguments(cmd, ["valid_file.py"])
+
+        # Shell metacharacter in extra arguments raises ArgumentNotAllowedError
+        with self.assertRaises(ArgumentNotAllowedError):
+            self.registry.validate_extra_arguments(cmd, ["valid_file.py; rm -rf /"])
 
     def test_unknown_command_rejection(self):
         with self.assertRaises(CommandRejectedError):

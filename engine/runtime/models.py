@@ -21,6 +21,7 @@ class ExecutionStatus(str, Enum):
     CANCELLED = "CANCELLED"
     CRASHED = "CRASHED"
     OUTPUT_LIMIT_EXCEEDED = "OUTPUT_LIMIT_EXCEEDED"
+    WORKSPACE_CHANGED = "WORKSPACE_CHANGED"
 
 class VerificationStatus(str, Enum):
     NOT_STARTED = "NOT_STARTED"
@@ -28,11 +29,34 @@ class VerificationStatus(str, Enum):
     PASSED = "PASSED"
     FAILED = "FAILED"
     ROLLED_BACK = "ROLLED_BACK"
+    APPLIED_BUT_VERIFICATION_FAILED = "APPLIED_BUT_VERIFICATION_FAILED"
+    WORKSPACE_CHANGED_DURING_VERIFICATION = "WORKSPACE_CHANGED_DURING_VERIFICATION"
+    INCOMPLETE = "INCOMPLETE"
+    DENIED = "DENIED"
+    UNAVAILABLE = "UNAVAILABLE"
 
 class ExecutionRiskLevel(str, Enum):
     LOW = "LOW"        # Static syntax/compilation checks
     MEDIUM = "MEDIUM"     # Read-only lint/formatting checks
     HIGH = "HIGH"       # Project test execution (arbitrary code run)
+
+class ExecutionCapability(str, Enum):
+    READ_WORKSPACE = "READ_WORKSPACE"
+    WRITE_WORKSPACE = "WRITE_WORKSPACE"
+    READ_ENVIRONMENT = "READ_ENVIRONMENT"
+    NETWORK_ACCESS = "NETWORK_ACCESS"
+    PROCESS_SPAWN = "PROCESS_SPAWN"
+
+class VerificationLevel(str, Enum):
+    NONE = "NONE"
+    SYNTAX = "SYNTAX"
+    TARGETED = "TARGETED"
+    FULL = "FULL"
+
+class ExecutionSideEffect(str, Enum):
+    READ_ONLY = "READ_ONLY"
+    WORKSPACE_WRITE = "WORKSPACE_WRITE"
+    EXTERNAL_SIDE_EFFECT = "EXTERNAL_SIDE_EFFECT"
 
 @dataclass
 class CommandDefinition:
@@ -40,9 +64,13 @@ class CommandDefinition:
     category: CommandCategory
     executable: str
     base_arguments: List[str] = field(default_factory=list)
+    allowed_argument_patterns: List[str] = field(default_factory=list)
     allowed: bool = True
     timeout_seconds: float = 30.0
     risk_level: ExecutionRiskLevel = ExecutionRiskLevel.LOW
+    capabilities: List[ExecutionCapability] = field(default_factory=lambda: [ExecutionCapability.READ_WORKSPACE, ExecutionCapability.PROCESS_SPAWN])
+    side_effect: ExecutionSideEffect = ExecutionSideEffect.READ_ONLY
+    description: str = ""
 
 @dataclass
 class CommandRequest:
@@ -61,6 +89,12 @@ class ExecutionResult:
     duration: float
     stdout: str
     stderr: str
+    resolved_executable: str = ""
+    arguments: List[str] = field(default_factory=list)
+    working_directory: str = "."
+    policy_decision: str = "PERMITTED"
+    workspace_snapshot_hash: Optional[str] = None
+    environment_mode: str = "LOCAL_RESTRICTED"
     stdout_truncated: bool = False
     stderr_truncated: bool = False
 
@@ -80,12 +114,24 @@ class VerificationPlan:
     task_id: str
     steps: List[VerificationStep] = field(default_factory=list)
     estimated_duration: float = 0.0
+    level: VerificationLevel = VerificationLevel.SYNTAX
+
+@dataclass
+class VerificationProfile:
+    profile_id: str
+    name: str
+    description: str
+    categories: List[CommandCategory] = field(default_factory=list)
+    stop_on_failure: bool = True
+    risk_level: ExecutionRiskLevel = ExecutionRiskLevel.LOW
+    default_level: VerificationLevel = VerificationLevel.TARGETED
 
 @dataclass
 class VerificationResultModel:
     verification_id: str
     task_id: str
     status: VerificationStatus
+    level: VerificationLevel = VerificationLevel.NONE
     step_results: List[ExecutionResult] = field(default_factory=list)
     rollback_executed: bool = False
     summary: str = ""

@@ -33,7 +33,7 @@ class TestCommandExecutor(unittest.TestCase):
     def test_high_risk_execution_approval_boundary(self):
         req = CommandRequest(
             command_name="pytest_targeted",
-            extra_arguments=["tests/"]
+            extra_arguments=["valid.py"]
         )
 
         # execution_approved=False MUST raise ExecutionApprovalRequiredError
@@ -41,7 +41,6 @@ class TestCommandExecutor(unittest.TestCase):
             self.executor.execute(req, self.repo_root, "TASK-EXEC-002", execution_approved=False)
 
     def test_timeout_termination(self):
-        # Register short timeout command running infinite loop
         from engine.runtime.models import CommandDefinition, CommandCategory, ExecutionRiskLevel
         self.executor.registry.register(CommandDefinition(
             name="infinite_loop_test",

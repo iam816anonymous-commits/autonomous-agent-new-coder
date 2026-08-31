@@ -65,6 +65,18 @@ def main():
 
     snapshot = RepositoryAnalyzer.analyze(args.path)
 
+    if hasattr(args, "subcommand") and args.subcommand == "semantic-analyze":
+        from .semantic.snapshot import SemanticSnapshotter
+        sem_snap = SemanticSnapshotter.capture(snapshot)
+        res = {
+            "fingerprint": sem_snap.repository_fingerprint,
+            "architecture": sem_snap.architecture,
+            "symbol_count": len(sem_snap.graph.symbols),
+            "relation_count": len(sem_snap.graph.relations)
+        }
+        print(json.dumps(res, indent=2))
+        return
+
     if args.impact:
         impact = snapshot.analyze_file_impact(args.impact)
         print(json.dumps(asdict(impact), indent=2))

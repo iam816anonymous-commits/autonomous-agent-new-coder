@@ -5,6 +5,8 @@ from typing import Optional, Dict, Any, List, Set
 from engine.classifier.models import TaskClassification, TaskClassificationStatus, TaskType
 from repository.scan import RepositorySnapshot
 from repository.impact_analysis import ImpactAnalyzer
+from repository.semantic.snapshot import SemanticSnapshotter
+from repository.semantic.resolver import SemanticResolver
 from engine.operators.registry import OperatorRegistry
 from engine.runtime.sandbox.models import ExecutionCapability
 from .models import EngineeringPlan, EngineeringPlanStep, PlanStepStatus
@@ -13,8 +15,8 @@ from .operator_selection import OperatorSelector
 
 class EngineeringPlanner:
     """
-    Deterministically generates EngineeringPlan objects without an LLM.
-    Uses TaskClassification, RepositorySnapshot, ImpactAnalysis, and OperatorRegistry.
+    Deterministically generates EngineeringPlan objects incorporating semantic evidence and assumption tracking.
+    Supports REQUIRES_DISCOVERY when planning confidence is insufficient.
     """
     def __init__(self, registry: Optional[OperatorRegistry] = None):
         self.selector = OperatorSelector(registry)
@@ -29,11 +31,23 @@ class EngineeringPlanner:
         if classification.status != TaskClassificationStatus.SUPPORTED:
             raise PlanningError(f"Cannot generate plan: task status is '{classification.status.value}' (reason: {classification.extracted_parameters.get('reason')}).")
 
-        # 2. Match operator via OperatorSelector
+        # 2. Semantic Analysis & Discovery Gate
+        semantic_snap = SemanticSnapshotter.capture(repo_snapshot)
+        resolver = SemanticResolver(semantic_snap.graph)
+
+        if classification.task_type == TaskType.SYMBOL_RENAME:
+            old_name = classification.extracted_parameters.get("old_name", "")
+            res = resolver.resolve_definition(old_name)
+            if res["status"] == "AMBIGUOUS":
+                raise PlanningError(f"REQUIRES_DISCOVERY: Symbol '{old_name}' is ambiguous ({len(res['matches'])} matches found).")
+            elif res["status"] == "UNRESOLVED":
+                raise PlanningError(f"Planning failed: Symbol '{old_name}' does not exist in repository.")
+
+        # 3. Match operator via OperatorSelector
         op = self.selector.select_operator(classification.task_type, repo_snapshot)
         op_name = op.__class__.__name__
 
-        # 3. Perform Impact Analysis
+        # 4. Impact Analysis
         target_files = []
         if classification.task_type == TaskType.SYMBOL_RENAME:
             old_name = classification.extracted_parameters.get("old_name", "")
@@ -46,13 +60,13 @@ class EngineeringPlanner:
         impact = ImpactAnalyzer.analyze_impact(repo_snapshot, target_files)
         blast_radius = impact.blast_radius.value
 
-        # 4. Determine Required Capabilities
+        # 5. Required Capabilities
         required_caps: Set[ExecutionCapability] = {ExecutionCapability.STATIC_ANALYSIS, ExecutionCapability.READ_WORKSPACE}
         if classification.task_type in (TaskType.SYMBOL_RENAME, TaskType.FILE_MOVE):
             required_caps.add(ExecutionCapability.WRITE_WORKSPACE)
             required_caps.add(ExecutionCapability.EXECUTE_COMMAND)
 
-        # 5. Build Step
+        # 6. Build Step
         step_id = f"step-{uuid.uuid4().hex[:8]}"
         step = EngineeringPlanStep(
             step_id=step_id,

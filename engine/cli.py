@@ -6,10 +6,20 @@ from .models import TaskRecord, TaskState, ActorType
 from .store import TaskStore
 from .state_machine import TaskStateMachine
 from .classifier.classifier import TaskClassifier
+from .operators.registry import OperatorRegistry
+from .operators.builtin.symbol_rename import SymbolRenameOperator
+from .operators.builtin.file_move import FileMoveOperator
+from .operators.context import OperatorContext
 from repository.scan import RepositoryAnalyzer
 
+def get_default_registry() -> OperatorRegistry:
+    registry = OperatorRegistry()
+    registry.register(SymbolRenameOperator())
+    registry.register(FileMoveOperator())
+    return registry
+
 def main():
-    parser = argparse.ArgumentParser(description="Mini-Jules Task Engine & Classifier CLI")
+    parser = argparse.ArgumentParser(description="Mini-Jules Task Engine & Engineering Operator CLI")
     subparsers = parser.add_subparsers(dest="command", help="Subcommand to run")
 
     # task parser
@@ -48,16 +58,77 @@ def main():
     classify_p.add_argument("request", help="Natural language request string")
     classify_p.add_argument("--root", help="Optional repository root path for context-aware classification")
 
+    # plan parser
+    plan_p = subparsers.add_parser("plan", help="Generate deterministic execution plan (non-mutating)")
+    plan_p.add_argument("request", help="Request string")
+    plan_p.add_argument("--root", default=".", help="Repository root path")
+
+    # propose parser
+    propose_p = subparsers.add_parser("propose", help="Generate dry-run proposal and diffs (non-mutating)")
+    propose_p.add_argument("request", help="Request string")
+    propose_p.add_argument("--root", default=".", help="Repository root path")
+
+    # apply parser
+    apply_p = subparsers.add_parser("apply", help="Apply proposed engineering changes (requires --approved)")
+    apply_p.add_argument("request", help="Request string")
+    apply_p.add_argument("--root", default=".", help="Repository root path")
+    apply_p.add_argument("--approved", action="store_true", help="Explicit human approval flag")
+
     args = parser.parse_args()
 
     store = TaskStore()
     sm = TaskStateMachine(store)
     classifier = TaskClassifier()
+    registry = get_default_registry()
 
     if args.command == "classify":
         repo_snapshot = RepositoryAnalyzer.analyze(args.root) if args.root else None
         res = classifier.classify(args.request, repo_snapshot)
         print(json.dumps(asdict(res), indent=2))
+
+    elif args.command == "plan":
+        repo_snapshot = RepositoryAnalyzer.analyze(args.root)
+        classification = classifier.classify(args.request, repo_snapshot)
+        op = registry.get_operator_for_task(classification.task_type)
+        if not op:
+            print(json.dumps({"error": f"No operator found for task type {classification.task_type}"}, indent=2))
+            sys.exit(1)
+
+        ctx = OperatorContext(repository_root=args.root, task_id="CLI-PLAN", classification=classification, repo_snapshot=repo_snapshot)
+        plan_res = op.plan(ctx)
+        print(json.dumps(asdict(plan_res), indent=2))
+
+    elif args.command == "propose":
+        repo_snapshot = RepositoryAnalyzer.analyze(args.root)
+        classification = classifier.classify(args.request, repo_snapshot)
+        op = registry.get_operator_for_task(classification.task_type)
+        if not op:
+            print(json.dumps({"error": f"No operator found for task type {classification.task_type}"}, indent=2))
+            sys.exit(1)
+
+        ctx = OperatorContext(repository_root=args.root, task_id="CLI-PROPOSE", classification=classification, repo_snapshot=repo_snapshot)
+        plan_res = op.plan(ctx)
+        proposal = op.propose(ctx, plan_res)
+        print(json.dumps(asdict(proposal), indent=2))
+
+    elif args.command == "apply":
+        repo_snapshot = RepositoryAnalyzer.analyze(args.root)
+        classification = classifier.classify(args.request, repo_snapshot)
+        op = registry.get_operator_for_task(classification.task_type)
+        if not op:
+            print(json.dumps({"error": f"No operator found for task type {classification.task_type}"}, indent=2))
+            sys.exit(1)
+
+        ctx = OperatorContext(repository_root=args.root, task_id="CLI-APPLY", classification=classification, repo_snapshot=repo_snapshot)
+        plan_res = op.plan(ctx)
+        proposal = op.propose(ctx, plan_res)
+
+        try:
+            apply_res = op.apply(ctx, proposal, approved=args.approved)
+            print(json.dumps(asdict(apply_res), indent=2))
+        except Exception as e:
+            print(json.dumps({"error": str(e)}, indent=2))
+            sys.exit(1)
 
     elif args.command == "task":
         if args.task_command == "create":

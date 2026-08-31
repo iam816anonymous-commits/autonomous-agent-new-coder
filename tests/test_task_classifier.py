@@ -1,8 +1,9 @@
 import os
 import unittest
 from engine.classifier.classifier import TaskClassifier
-from engine.classifier.models import TaskType, TaskClassificationStatus
+from engine.classifier.models import TaskType, TaskClassificationStatus, TaskClassification
 from repository.scan import RepositoryAnalyzer
+from repository.models import BlastRadiusLevel
 
 FIXTURES_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), "fixtures"))
 
@@ -113,6 +114,15 @@ class TestTaskClassifierComposite(unittest.TestCase):
         sub_types = [s.task_type for s in res.subtasks]
         self.assertIn(TaskType.DEPENDENCY_UPGRADE, sub_types)
         self.assertIn(TaskType.SYMBOL_RENAME, sub_types)
+
+    def test_composite_risk_severity_ordering(self):
+        # LOW (Symbol rename) + MEDIUM (Dependency upgrade) -> MEDIUM
+        res1 = self.classifier.classify("Rename calculate_total to calculate_invoice_total and upgrade FastAPI to 0.120")
+        self.assertEqual(res1.risk, BlastRadiusLevel.MEDIUM)
+
+        # LOW (Rename) + HIGH (Migration) -> HIGH
+        res2 = self.classifier.classify("Rename calculate_total to calculate_invoice_total and convert CommonJS to ESM")
+        self.assertEqual(res2.risk, BlastRadiusLevel.HIGH)
 
 
 class TestTaskClassifierRepositoryAware(unittest.TestCase):

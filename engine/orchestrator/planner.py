@@ -7,6 +7,8 @@ from repository.scan import RepositorySnapshot
 from repository.impact_analysis import ImpactAnalyzer
 from repository.semantic.snapshot import SemanticSnapshotter
 from repository.semantic.resolver import SemanticResolver
+from repository.semantic.trust.trust_levels import SemanticTrustEvaluator
+from repository.semantic.trust.models import SemanticTrustLevel
 from engine.operators.registry import OperatorRegistry
 from engine.runtime.sandbox.models import ExecutionCapability
 from .models import EngineeringPlan, EngineeringPlanStep, PlanStepStatus
@@ -15,8 +17,8 @@ from .operator_selection import OperatorSelector
 
 class EngineeringPlanner:
     """
-    Deterministically generates EngineeringPlan objects incorporating semantic evidence and assumption tracking.
-    Supports REQUIRES_DISCOVERY when planning confidence is insufficient.
+    Deterministically generates EngineeringPlan objects incorporating semantic trust evaluation.
+    Enforces REQUIRES_DISCOVERY when planning confidence or trust level is insufficient.
     """
     def __init__(self, registry: Optional[OperatorRegistry] = None):
         self.selector = OperatorSelector(registry)
@@ -31,7 +33,7 @@ class EngineeringPlanner:
         if classification.status != TaskClassificationStatus.SUPPORTED:
             raise PlanningError(f"Cannot generate plan: task status is '{classification.status.value}' (reason: {classification.extracted_parameters.get('reason')}).")
 
-        # 2. Semantic Analysis & Discovery Gate
+        # 2. Semantic Analysis & Trust Gate
         semantic_snap = SemanticSnapshotter.capture(repo_snapshot)
         resolver = SemanticResolver(semantic_snap.graph)
 
@@ -42,6 +44,12 @@ class EngineeringPlanner:
                 raise PlanningError(f"REQUIRES_DISCOVERY: Symbol '{old_name}' is ambiguous ({len(res['matches'])} matches found).")
             elif res["status"] == "UNRESOLVED":
                 raise PlanningError(f"Planning failed: Symbol '{old_name}' does not exist in repository.")
+
+            # Evaluate Trust Level
+            symbol = res["symbol"]
+            trust_res = SemanticTrustEvaluator.evaluate_symbol_trust(symbol)
+            if trust_res.trust_level in (SemanticTrustLevel.LOW_CONFIDENCE, SemanticTrustLevel.UNKNOWN, SemanticTrustLevel.UNTRUSTED):
+                raise PlanningError(f"REQUIRES_DISCOVERY: Symbol '{old_name}' has insufficient trust level '{trust_res.trust_level.value}'.")
 
         # 3. Match operator via OperatorSelector
         op = self.selector.select_operator(classification.task_type, repo_snapshot)

@@ -77,6 +77,15 @@ def main():
         print(json.dumps(res, indent=2))
         return
 
+    if hasattr(args, "subcommand") and args.subcommand == "semantic-validate":
+        from .semantic.snapshot import SemanticSnapshotter
+        from .semantic.validation.validator import SemanticGraphValidator
+        sem_snap = SemanticSnapshotter.capture(snapshot)
+        validator = SemanticGraphValidator(sem_snap.graph)
+        val_res = validator.validate()
+        print(json.dumps(asdict(val_res), indent=2))
+        return
+
     if args.impact:
         impact = snapshot.analyze_file_impact(args.impact)
         print(json.dumps(asdict(impact), indent=2))

@@ -86,6 +86,26 @@ def main():
         print(json.dumps(asdict(val_res), indent=2))
         return
 
+    if hasattr(args, "subcommand") and args.subcommand == "semantic-plan":
+        from .semantic.snapshot import SemanticSnapshotter
+        from engine.change_planning.models import ChangeRequest, ChangeRequestType
+        from engine.change_planning.discovery import ChangeDiscoveryEngine
+        from engine.change_planning.impact import ChangeImpactAnalyzer
+        sem_snap = SemanticSnapshotter.capture(snapshot)
+        req_text = getattr(args, "request", "Engineering Change")
+        req = ChangeRequest(request_id="CLI-REQ", user_intent=req_text, request_type=ChangeRequestType.FEATURE, description=req_text)
+        disc_eng = ChangeDiscoveryEngine(sem_snap)
+        disc_res = disc_eng.discover_change_targets(req)
+        impact_eng = ChangeImpactAnalyzer(sem_snap)
+        impact_res = impact_eng.analyze_change_impact(req, disc_res["matched_symbols"])
+        out = {
+            "request": req_text,
+            "discovery": disc_res,
+            "impact": impact_res
+        }
+        print(json.dumps(out, indent=2, default=str))
+        return
+
     if args.impact:
         impact = snapshot.analyze_file_impact(args.impact)
         print(json.dumps(asdict(impact), indent=2))
